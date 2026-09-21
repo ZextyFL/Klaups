@@ -100,7 +100,7 @@ export function DonateForm({ slug, currency }: { slug: string; currency: string 
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <button className="btn-primary w-full" onClick={submit} disabled={loading} type="button">
+      <button className="btn-accent w-full" onClick={submit} disabled={loading} type="button">
         {loading ? 'Redirecting…' : `Donate ${(activeCents / 100).toFixed(2)} ${currency.toUpperCase()}`}
       </button>
     </div>

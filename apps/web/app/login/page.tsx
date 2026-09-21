@@ -7,9 +7,12 @@ export default function LoginPage({
   searchParams: { error?: string; notice?: string };
 }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center bg-ink-900 px-6">
-      <h1 className="text-2xl font-bold">Log in</h1>
-      <p className="mt-1 text-sm text-white/60">Welcome back to your Klaups dashboard.</p>
+    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center bg-black px-6">
+      <Link href="/" className="mb-8 text-[19px] font-semibold tracking-tight">
+        Kl<span className="text-brand-500">aups</span>
+      </Link>
+      <h1 className="text-3xl font-semibold tracking-tight">Log in</h1>
+      <p className="mt-1 text-white/50">Welcome back to your Klaups dashboard.</p>
 
       {searchParams.notice && (
         <p className="mt-4 rounded-lg bg-brand-500/10 p-3 text-sm text-brand-400">
@@ -35,12 +38,12 @@ export default function LoginPage({
           </label>
           <input className="input" id="password" name="password" type="password" required />
         </div>
-        <button className="btn-primary w-full" type="submit">
+        <button className="btn-accent w-full" type="submit">
           Log in
         </button>
       </form>
 
-      <p className="mt-6 text-sm text-white/60">
+      <p className="mt-6 text-sm text-white/50">
         No account yet?{' '}
         <Link href="/signup" className="text-brand-400 hover:underline">
           Create one

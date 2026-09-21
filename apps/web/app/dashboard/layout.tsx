@@ -16,7 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { profile } = await getCurrentCreator();
 
   return (
-    <div className="min-h-screen bg-ink-900 lg:flex">
+    <div className="min-h-screen bg-black lg:flex">
       <aside className="border-b border-white/10 p-6 lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r">
         <Link href="/" className="text-lg font-bold">
           Kl<span className="text-brand-500">aups</span>

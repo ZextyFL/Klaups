@@ -2,31 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 html,
 body {
   color: #f5f5f7;
 }
 
+::selection {
+  background: theme('colors.brand.500 / 35%');
+  color: #fff;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
 .card {
-  @apply rounded-2xl border border-white/10 bg-ink-800/60 p-6 shadow-xl backdrop-blur;
+  @apply rounded-2xl border border-white/10 bg-ink-800/60 p-6 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset] backdrop-blur;
 }
 
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium transition;
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 py-2.5 text-[15px] font-medium transition-all duration-200 ease-out active:scale-[0.97];
 }
 
 .btn-primary {
-  @apply btn bg-brand-500 text-white hover:bg-brand-600;
+  @apply btn bg-white text-black shadow-[0_1px_2px_rgba(0,0,0,0.3)] hover:-translate-y-px hover:shadow-[0_8px_24px_-4px_rgba(255,255,255,0.25)];
+}
+
+.btn-accent {
+  @apply btn bg-gradient-to-b from-brand-400 to-brand-600 text-white shadow-[0_1px_2px_rgba(0,0,0,0.3)] hover:-translate-y-px hover:shadow-[0_8px_24px_-4px_rgba(236,72,153,0.55)];
 }
 
 .btn-secondary {
-  @apply btn border border-white/15 bg-white/5 text-white hover:bg-white/10;
+  @apply btn border border-white/15 bg-white/[0.06] text-white hover:border-white/25 hover:bg-white/10;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center gap-1.5 text-[15px] font-medium text-white/80 transition hover:text-white;
 }
 
 .input {
-  @apply w-full rounded-xl border border-white/15 bg-ink-900 px-3 py-2 text-white placeholder-white/30 outline-none focus:border-brand-500;
+  @apply w-full rounded-xl border border-white/15 bg-ink-900 px-3 py-2 text-white placeholder-white/30 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15;
 }
 
 .label {
   @apply mb-1 block text-sm font-medium text-white/70;
+}
+
+.eyebrow {
+  @apply text-xs font-semibold uppercase tracking-[0.14em] text-brand-400;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.bg-grain {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 3px 3px;
 }

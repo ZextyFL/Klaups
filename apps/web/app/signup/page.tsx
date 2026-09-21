@@ -3,9 +3,12 @@ import { signUp } from '@/app/auth/actions';
 
 export default function SignupPage({ searchParams }: { searchParams: { error?: string } }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center bg-ink-900 px-6">
-      <h1 className="text-2xl font-bold">Create your creator page</h1>
-      <p className="mt-1 text-sm text-white/60">
+    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center bg-black px-6">
+      <Link href="/" className="mb-8 text-[19px] font-semibold tracking-tight">
+        Kl<span className="text-brand-500">aups</span>
+      </Link>
+      <h1 className="text-3xl font-semibold tracking-tight">Create your page</h1>
+      <p className="mt-1 text-white/50">
         Your donation link, overlays and payouts, set up in a minute.
       </p>
 
@@ -49,12 +52,12 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
             required
           />
         </div>
-        <button className="btn-primary w-full" type="submit">
+        <button className="btn-accent w-full" type="submit">
           Create account
         </button>
       </form>
 
-      <p className="mt-6 text-sm text-white/60">
+      <p className="mt-6 text-sm text-white/50">
         Already have an account?{' '}
         <Link href="/login" className="text-brand-400 hover:underline">
           Log in

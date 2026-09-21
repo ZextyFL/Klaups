@@ -22,7 +22,7 @@ export default async function DonatePage({ params }: { params: { slug: string } 
   if (!profile) notFound();
 
   return (
-    <main className="min-h-screen bg-ink-900">
+    <main className="min-h-screen bg-black">
       <div
         className="h-48 w-full bg-cover bg-center bg-ink-800"
         style={profile.banner_url ? { backgroundImage: `url(${profile.banner_url})` } : undefined}
@@ -32,7 +32,9 @@ export default async function DonatePage({ params }: { params: { slug: string } 
           className="h-24 w-24 rounded-full border-4 border-ink-900 bg-ink-800 bg-cover bg-center"
           style={profile.avatar_url ? { backgroundImage: `url(${profile.avatar_url})` } : undefined}
         />
-        <h1 className="mt-4 text-2xl font-bold">Support {profile.display_name ?? profile.username}</h1>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">
+          Support {profile.display_name ?? profile.username}
+        </h1>
         <p className="text-white/50">@{profile.username}</p>
 
         <div className="card mt-6">
