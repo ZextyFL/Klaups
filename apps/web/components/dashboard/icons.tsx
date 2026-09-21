@@ -23,6 +23,11 @@ export const Icons = {
       <path d="M3 11.5 12 4l9 7.5M5 10v10h14V10" />
     </Svg>
   ),
+  activity: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M3 12h4l2.2-6 4.2 12 2.2-6H21" />
+    </Svg>
+  ),
   link: (p: IconProps) => (
     <Svg {...p}>
       <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1.5 1.5" />
