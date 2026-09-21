@@ -10,6 +10,10 @@ export const runtime = 'nodejs';
 // returns an onboarding link. Payouts on that account are set to "manual" —
 // we trigger payouts ourselves every N days from process-payouts.ts instead
 // of letting Stripe auto-payout daily.
+export async function GET() {
+  return NextResponse.redirect(`${siteUrl()}/dashboard/verify?refresh=1`);
+}
+
 export async function POST() {
   const supabase = createClient();
   const {
@@ -56,7 +60,7 @@ export async function POST() {
   const link = await stripe.accountLinks.create({
     account: accountId,
     refresh_url: `${siteUrl()}/api/stripe/connect/onboard`,
-    return_url: `${siteUrl()}/dashboard/payouts?onboarded=1`,
+    return_url: `${siteUrl()}/dashboard/verify?onboarded=1`,
     type: 'account_onboarding',
   });
 
