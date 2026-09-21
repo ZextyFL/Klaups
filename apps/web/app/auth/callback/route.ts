@@ -4,18 +4,42 @@ import { siteUrl } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
 
-// Target of Supabase's email confirmation / magic links: exchanges the
-// one-time code for a session cookie, then lands the creator on the dashboard.
 export async function GET(request: Request) {
-  const code = new URL(request.url).searchParams.get('code');
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const popup = url.searchParams.get('popup') === '1';
 
   if (code) {
     const supabase = createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${siteUrl()}/dashboard`);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (!error && data.user) {
+      const providers = Array.isArray(data.user.app_metadata?.providers)
+        ? data.user.app_metadata.providers
+        : [data.user.app_metadata?.provider].filter(Boolean);
+
+      if (!providers.includes('google')) {
+        await supabase.auth.signOut();
+        const message = 'Klaups only supports Google sign in.';
+        return NextResponse.redirect(
+          popup
+            ? `${siteUrl()}/auth/popup-complete?ok=0&error=${encodeURIComponent(message)}`
+            : `${siteUrl()}/login?error=${encodeURIComponent(message)}`
+        );
+      }
+
+      return NextResponse.redirect(
+        popup
+          ? `${siteUrl()}/auth/popup-complete?ok=1`
+          : `${siteUrl()}/onboarding/tiktok`
+      );
     }
   }
 
-  return NextResponse.redirect(`${siteUrl()}/login?error=Confirmation+link+is+invalid+or+expired`);
+  const message = 'Google sign in is invalid or expired.';
+  return NextResponse.redirect(
+    popup
+      ? `${siteUrl()}/auth/popup-complete?ok=0&error=${encodeURIComponent(message)}`
+      : `${siteUrl()}/login?error=${encodeURIComponent(message)}`
+  );
 }
