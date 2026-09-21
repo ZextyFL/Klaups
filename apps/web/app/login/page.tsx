@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { signIn } from '@/app/auth/actions';
+import { AuthShell } from '@/components/AuthShell';
 
 export default function LoginPage({
   searchParams,
@@ -7,11 +8,8 @@ export default function LoginPage({
   searchParams: { error?: string; notice?: string };
 }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center bg-black px-6">
-      <Link href="/" className="mb-8 text-[19px] font-semibold tracking-tight">
-        Kl<span className="text-brand-500">aups</span>
-      </Link>
-      <h1 className="text-3xl font-semibold tracking-tight">Log in</h1>
+    <AuthShell>
+      <h1 className="text-2xl font-semibold tracking-tight">Log in</h1>
       <p className="mt-1 text-white/50">Welcome back to your Klaups dashboard.</p>
 
       {searchParams.notice && (
@@ -49,6 +47,6 @@ export default function LoginPage({
           Create one
         </Link>
       </p>
-    </main>
+    </AuthShell>
   );
 }

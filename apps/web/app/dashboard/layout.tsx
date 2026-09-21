@@ -10,6 +10,7 @@ const NAV = [
   { href: '/dashboard/alerts', label: 'Alerts' },
   { href: '/dashboard/integrations', label: 'TikTok & Spotify' },
   { href: '/dashboard/payouts', label: 'Payouts' },
+  { href: '/dashboard/account', label: 'Account' },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
