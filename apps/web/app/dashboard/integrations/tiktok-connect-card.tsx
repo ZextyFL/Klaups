@@ -33,9 +33,15 @@ export function TikTokConnectCard({ settings }: { settings: CreatorSettings }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<LookupResult | null>(null);
   const [lookupFailed, setLookupFailed] = useState<string | null>(null);
+  const [connectingSince, setConnectingSince] = useState<number | null>(
+    settings.tiktok_status === 'connecting' ? Date.now() : null
+  );
+  const [now, setNow] = useState(() => Date.now());
 
   const connected = settings.tiktok_worker_enabled && !!settings.tiktok_username;
   const status = STATUS_LABEL[connected ? settings.tiktok_status : 'disconnected'];
+  const stuckConnecting =
+    settings.tiktok_status === 'connecting' && connectingSince !== null && now - connectingSince > 25_000;
 
   // Poll while connected so the badge/viewer count follow the worker's updates.
   useEffect(() => {
@@ -43,6 +49,18 @@ export function TikTokConnectCard({ settings }: { settings: CreatorSettings }) {
     const id = setInterval(() => router.refresh(), 10_000);
     return () => clearInterval(id);
   }, [connected, router]);
+
+  // Ticks the clock while "connecting" so the stuck-state warning can appear
+  // without needing another refresh, and tracks when that state started.
+  useEffect(() => {
+    if (settings.tiktok_status !== 'connecting') {
+      setConnectingSince(null);
+      return;
+    }
+    setConnectingSince((prev) => prev ?? Date.now());
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, [settings.tiktok_status]);
 
   async function update(patch: Partial<CreatorSettings>) {
     const { error: updateError } = await supabase
@@ -175,12 +193,25 @@ export function TikTokConnectCard({ settings }: { settings: CreatorSettings }) {
               Last live: {new Date(settings.tiktok_last_seen_at).toLocaleString()}
             </p>
           )}
+
+          {stuckConnecting && (
+            <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-yellow-200 backdrop-blur-xl">
+              <p className="font-medium">Still connecting after a while — this usually means the worker isn&apos;t running.</p>
+              <p className="mt-1 text-yellow-200/70">
+                TikTok chat/TTS/viewer count need <code>apps/worker</code> deployed as an always-on
+                process (Railway, Render, Fly.io, a VPS — never Netlify) with your Supabase URL and
+                service role key set. If it&apos;s already deployed, check its logs for errors; if not,
+                see <code>apps/worker/README.md</code> in the repo to deploy it.
+              </p>
+            </div>
+          )}
+
           <button className="btn-secondary text-sm" onClick={disconnectTikTok} disabled={busy} type="button">
             Disconnect
           </button>
         </>
       ) : pending ? (
-        <div className="rounded-2xl border border-brand-500/30 bg-brand-500/[0.06] p-4">
+        <div className="rounded-2xl border border-brand-500/30 bg-brand-500/[0.06] p-4 backdrop-blur-xl">
           <p className="mb-3 text-sm font-medium text-white/70">Is this you?</p>
           <div className="flex items-center gap-3">
             <div
@@ -242,7 +273,7 @@ export function TikTokConnectCard({ settings }: { settings: CreatorSettings }) {
             </button>
           </div>
           {lookupFailed && (
-            <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-yellow-200">
+            <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-yellow-200 backdrop-blur-xl">
               <p>Couldn&apos;t verify @{lookupFailed} on TikTok right now.</p>
               <button
                 className="mt-2 font-medium underline underline-offset-2"

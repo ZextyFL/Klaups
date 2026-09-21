@@ -75,10 +75,10 @@ export function Sidebar({
                   <Link
                     href={item.href}
                     onClick={() => setOpen(false)}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] transition-colors ${
+                    className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] backdrop-blur-xl transition-colors ${
                       active
-                        ? 'bg-white/10 font-medium text-white'
-                        : 'text-white/60 hover:bg-white/5 hover:text-white'
+                        ? 'bg-white/[0.12] font-medium text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]'
+                        : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
                     }`}
                   >
                     <Icon className={`h-[18px] w-[18px] ${active ? 'text-brand-400' : ''}`} />
@@ -107,7 +107,7 @@ export function Sidebar({
   );
 
   const liveChip = live ? (
-    <div className="mx-4 mb-3 flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs text-green-300">
+    <div className="mx-4 mb-3 flex items-center gap-2 rounded-xl border border-green-400/25 bg-green-500/[0.08] px-3 py-2 text-xs text-green-300 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(74,222,128,0.15)]">
       <span className="relative flex h-2 w-2">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
@@ -115,14 +115,14 @@ export function Sidebar({
       LIVE · {viewerCount.toLocaleString()} watching
     </div>
   ) : (
-    <div className="mx-4 mb-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/40">
+    <div className="mx-4 mb-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-white/40 backdrop-blur-xl">
       Offline
     </div>
   );
 
   const footer = (
     <form action={signOutAction} className="border-t border-white/[0.06] p-3">
-      <button type="submit" className="w-full rounded-xl px-3 py-2 text-left text-sm text-white/50 hover:bg-white/5 hover:text-white">
+      <button type="submit" className="w-full rounded-xl px-3 py-2 text-left text-sm text-white/50 transition-colors hover:bg-white/[0.06] hover:text-white">
         Log out
       </button>
     </form>
@@ -149,7 +149,7 @@ export function Sidebar({
       {open && (
         <div className="fixed inset-0 z-30 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-ink-950 pt-14 shadow-2xl">
+          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col border-r border-white/[0.08] bg-black/70 pt-14 shadow-2xl backdrop-blur-2xl">
             {identity}
             {liveChip}
             {nav}
@@ -159,7 +159,7 @@ export function Sidebar({
       )}
 
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/[0.06] bg-ink-950 lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/[0.08] bg-black/40 backdrop-blur-2xl lg:flex">
         <div className="px-6 pb-2 pt-6">
           <Link href="/" className="text-[19px] font-semibold tracking-tight">
             Kl<span className="text-brand-500">aups</span>
