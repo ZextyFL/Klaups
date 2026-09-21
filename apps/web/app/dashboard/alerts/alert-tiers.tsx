@@ -85,6 +85,7 @@ export function AlertTiers({
       min_amount_cents: nextMinimum,
       message_template: preset.template,
       display_seconds: preset.duration,
+      volume: 100,
       sound_url: preset.soundUrl,
       preset: preset.preset,
     });
@@ -122,10 +123,21 @@ export function AlertTiers({
     setBusy(id);
     setError(null);
     try {
+      if (kind === 'sound') {
+        const allowed = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg'];
+        if (!allowed.includes(file.type)) throw new Error('Use an MP3, WAV or OGG sound file.');
+        if (file.size > 15 * 1024 * 1024) throw new Error('Alert sounds can be up to 15 MB.');
+      } else {
+        if (!file.type.startsWith('image/')) throw new Error('Use an image or GIF file.');
+        if (file.size > 10 * 1024 * 1024) throw new Error('Alert images can be up to 10 MB.');
+      }
+
       const bucket = 'alerts';
-      const path = `${profileId}/${id}/${kind}-${Date.now()}-${file.name}`;
+      const fallbackExt = kind === 'sound' ? 'mp3' : 'png';
+      const rawExt = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || fallbackExt;
+      const path = `${profileId}/${id}/${kind}-${crypto.randomUUID()}.${rawExt}`;
       const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
-        upsert: true,
+        upsert: false,
       });
       if (uploadError) throw uploadError;
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
@@ -234,6 +246,7 @@ function AlertTierCard({
   const [minAmount, setMinAmount] = useState((tier.min_amount_cents / 100).toString());
   const [template, setTemplate] = useState(tier.message_template);
   const [duration, setDuration] = useState(tier.display_seconds.toString());
+  const [volume, setVolume] = useState(tier.volume ?? 100);
   const soundInput = useRef<HTMLInputElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const preset = tier.preset ?? 'clean';
@@ -378,7 +391,39 @@ function AlertTierCard({
             </div>
           </div>
 
-          <div>
+          <div className="grid gap-4 sm:grid-cols-[1fr_220px]">
+            <div>
+              <label className="label">Message</label>
+              <input
+                className="input"
+                value={template}
+                onChange={(e) => setTemplate(e.target.value)}
+                onBlur={() => onChange({ message_template: template })}
+              />
+              <p className="mt-1 text-xs text-white/35">
+                Use {'{name}'} and {'{amount}'} as placeholders.
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="label">Sound volume</label>
+                <span className="text-xs text-white/40">{volume}%</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={volume}
+                className="mt-3 w-full accent-pink-500"
+                onChange={(e) => setVolume(Number(e.target.value))}
+                onPointerUp={() => onChange({ volume })}
+                onKeyUp={() => onChange({ volume })}
+              />
+            </div>
+          </div>
+
+          <div className="hidden">
             <label className="label">Message</label>
             <input
               className="input"
@@ -397,7 +442,7 @@ function AlertTierCard({
               <select
                 className="input"
                 value={tier.sound_url?.startsWith('builtin:') ? tier.sound_url : ''}
-                onChange={(e) => e.target.value && onChange({ sound_url: e.target.value })}
+                onChange={(e) => onChange({ sound_url: e.target.value || null })}
               >
                 <option value="">Custom upload / none</option>
                 {BUILTIN_SOUNDS.map(([value, label]) => (
@@ -409,7 +454,7 @@ function AlertTierCard({
               <button
                 className="btn-secondary text-sm"
                 type="button"
-                onClick={() => playSoundUrl(tier.sound_url)}
+                onClick={() => playSoundUrl(tier.sound_url, volume / 100)}
               >
                 Preview
               </button>
