@@ -50,6 +50,15 @@ export default async function WidgetsPage() {
       test: 'donation',
     },
     {
+      name: 'Soundboard audio',
+      icon: 'music',
+      description: 'Hidden realtime audio source used by your Klaups soundboard buttons and keybinds.',
+      size: '1 × 1',
+      url: `${base}/soundboard?${t}`,
+      settingsHref: '/dashboard/soundboard',
+      settingsLabel: 'Open soundboard',
+    },
+    {
       name: 'Daily goal bar',
       icon: 'target',
       description: 'Progress bar that climbs live with every donation.',
@@ -129,7 +138,7 @@ export default async function WidgetsPage() {
             <span className="text-white/70">Streamlabs / XSplit</span>: Add Source → Browser Source
           </li>
           <li>Paste the URL, set the width/height shown on the card</li>
-          <li>Enable audio for the source so the Chat + TTS and Alerts widgets can be heard</li>
+          <li>Enable audio for Chat + TTS, Alerts and Soundboard browser sources</li>
         </ol>
       </div>
     </div>
