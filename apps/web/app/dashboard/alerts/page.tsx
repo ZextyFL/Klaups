@@ -3,7 +3,7 @@ import { AlertTiers } from './alert-tiers';
 import { CopyField } from '../copy-field';
 import { siteUrl } from '@/lib/site-url';
 import { PageHeader } from '@/components/dashboard/PageHeader';
-
+import { TestSendButton } from '@/components/dashboard/TestSendButton';
 
 export default async function AlertsPage() {
   const { settings, supabase, user } = await getCurrentCreator();
@@ -17,12 +17,69 @@ export default async function AlertsPage() {
   const overlayUrl = `${siteUrl()}/overlay/alerts?token=${settings.overlay_token}`;
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <PageHeader title="Donation alerts" description="Add a sound and image for donations. The highest tier under the donation amount wins." />
+    <div className="space-y-6">
+      <PageHeader
+        title="Alerts"
+        description="Build donation alerts, test them live and copy the exact Browser Source into OBS or TikTok LIVE Studio."
+        action={
+          <TestSendButton
+            endpoint="/api/test/donation"
+            body={{ amountCents: 500, donorName: 'Klaups Test', message: 'Your alert link is working!' }}
+            label="Test alert"
+            className="btn-accent"
+          />
+        }
+      />
 
-      <div className="card">
-        <CopyField label="Browser source URL" value={overlayUrl} />
-        <p className="mt-2 text-xs text-white/40">Recommended size: 800×400, transparent background.</p>
+      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="card overflow-hidden rounded-3xl p-0">
+          <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
+            <div>
+              <p className="font-semibold">Live alert preview</p>
+              <p className="mt-0.5 text-xs text-white/35">
+                The preview uses the same URL your stream uses.
+              </p>
+            </div>
+            <span className="rounded-full bg-green-500/10 px-2.5 py-1 text-xs font-medium text-green-300">
+              Browser source
+            </span>
+          </div>
+          <div className="relative aspect-[2/1] min-h-[280px] overflow-hidden bg-[#070707]">
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:32px_32px]"
+            />
+            <iframe
+              src={overlayUrl}
+              title="Donation alert preview"
+              className="relative h-full w-full border-0"
+              allow="autoplay"
+            />
+          </div>
+        </div>
+
+        <div className="card h-fit rounded-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-400">
+            Stream setup
+          </p>
+          <h2 className="mt-2 text-xl font-semibold">Your alert URL</h2>
+          <p className="mt-2 text-sm leading-6 text-white/45">
+            Add this as a Browser Source. Keep the URL private because it contains your overlay token.
+          </p>
+          <div className="mt-5">
+            <CopyField label="Browser source URL" value={overlayUrl} />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-white/45">
+            <div className="rounded-xl bg-white/[0.04] p-3">
+              <p className="text-white/70">Size</p>
+              <p className="mt-1">800 × 400</p>
+            </div>
+            <div className="rounded-xl bg-white/[0.04] p-3">
+              <p className="text-white/70">Audio</p>
+              <p className="mt-1">Enable source audio</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <AlertTiers profileId={user.id} currency={settings.currency} tiers={tiers ?? []} />
