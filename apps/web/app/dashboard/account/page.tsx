@@ -1,15 +1,13 @@
 import { getCurrentCreator } from '@/lib/get-current-creator';
 import { PasswordForm } from './password-form';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 
 export default async function AccountPage() {
   const { user, profile } = await getCurrentCreator();
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Account</h1>
-        <p className="mt-1 text-white/60">Your login details.</p>
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <PageHeader title="Account" description="Your login details." />
 
       <div className="card space-y-4">
         <div>

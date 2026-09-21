@@ -2,6 +2,7 @@ import { getCurrentCreator } from '@/lib/get-current-creator';
 import { DonationLinkForm } from './settings-form';
 import { CopyField } from '../copy-field';
 import { siteUrl } from '@/lib/site-url';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 
 
 export default async function DonationLinkPage() {
@@ -10,11 +11,8 @@ export default async function DonationLinkPage() {
   const donateUrl = `${siteUrl()}/donate/${settings.donation_slug}`;
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Donation link</h1>
-        <p className="mt-1 text-white/60">Share this link anywhere — bio, live description, chat.</p>
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <PageHeader title="Donation link" description="Share this link anywhere — bio, live description, chat." />
 
       <div className="card space-y-4">
         <CopyField label="Your donation page" value={donateUrl} />

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { CreatorSettings } from '@/lib/database.types';
+import { Toggle } from '@/components/ui/Toggle';
 
 const STATUS_LABEL: Record<CreatorSettings['tiktok_status'], { text: string; className: string }> = {
   disconnected: { text: 'Not connected', className: 'bg-white/10 text-white/60' },
@@ -160,10 +161,12 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
 
       <div className="card space-y-4">
         <h2 className="font-semibold">Text-to-speech</h2>
-        <label className="flex items-center gap-2 text-sm text-white/70">
-          <input type="checkbox" checked={ttsEnabled} onChange={(e) => setTtsEnabled(e.target.checked)} />
-          Read chat aloud (TTS) on the chat overlay
-        </label>
+        <Toggle
+          checked={ttsEnabled}
+          onChange={setTtsEnabled}
+          label="Read chat aloud"
+          description="Every chat message is spoken on the Chat + TTS widget."
+        />
         <div>
           <label className="label">Minimum donation amount to trigger TTS on alerts</label>
           <input className="input" type="number" min={0} value={minTts} onChange={(e) => setMinTts(e.target.value)} />
@@ -193,14 +196,12 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
 
       <div className="card space-y-4">
         <h2 className="font-semibold">Spotify song requests</h2>
-        <label className="flex items-center gap-2 text-sm text-white/70">
-          <input
-            type="checkbox"
-            checked={songRequestEnabled}
-            onChange={(e) => setSongRequestEnabled(e.target.checked)}
-          />
-          Let viewers queue songs on my Spotify with a chat command
-        </label>
+        <Toggle
+          checked={songRequestEnabled}
+          onChange={setSongRequestEnabled}
+          label="Song requests"
+          description="Viewers queue tracks on your Spotify with a chat command."
+        />
         <div>
           <label className="label">Command</label>
           <input className="input" value={songCommand} onChange={(e) => setSongCommand(e.target.value)} />

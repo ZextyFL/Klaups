@@ -2,6 +2,7 @@ import { getCurrentCreator } from '@/lib/get-current-creator';
 import { GoalForm } from './goal-form';
 import { CopyField } from '../copy-field';
 import { siteUrl } from '@/lib/site-url';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 
 
 export default async function GoalsPage() {
@@ -14,13 +15,8 @@ export default async function GoalsPage() {
   const overlayUrl = `${siteUrl()}/overlay/goal?token=${settings.overlay_token}`;
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Daily goal</h1>
-        <p className="mt-1 text-white/60">
-          A live-updating goal bar you can add to your stream as an OBS browser source.
-        </p>
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <PageHeader title="Daily goal" description="A live-updating goal bar you can add to your stream as an OBS browser source." />
 
       <div className="card">
         <CopyField label="OBS browser source URL" value={overlayUrl} />

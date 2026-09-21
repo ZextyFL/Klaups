@@ -2,6 +2,7 @@ import { getCurrentCreator } from '@/lib/get-current-creator';
 import { IntegrationsForm } from './integrations-form';
 import { CopyField } from '../copy-field';
 import { siteUrl } from '@/lib/site-url';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 
 
 export default async function IntegrationsPage({
@@ -22,13 +23,8 @@ export default async function IntegrationsPage({
   const viewerOverlayUrl = `${siteUrl()}/overlay/viewers?token=${settings.overlay_token}`;
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">TikTok &amp; Spotify</h1>
-        <p className="mt-1 text-white/60">
-          Connect your live chat for TTS and song requests, and your Spotify to play them.
-        </p>
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <PageHeader title="Connections &amp; TTS" description="Connect your live chat for TTS and song requests, and your Spotify to play them." />
 
       {searchParams.spotify === 'connected' && (
         <p className="rounded-lg bg-green-500/10 p-3 text-sm text-green-400">Spotify connected.</p>

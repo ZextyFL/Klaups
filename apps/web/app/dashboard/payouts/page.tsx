@@ -1,5 +1,6 @@
 import { getCurrentCreator } from '@/lib/get-current-creator';
 import { formatCents } from '@/lib/format';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 
 export default async function PayoutsPage() {
   const { settings, balance, supabase, user } = await getCurrentCreator();
@@ -12,14 +13,11 @@ export default async function PayoutsPage() {
     .limit(20);
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Payouts</h1>
-        <p className="mt-1 text-white/60">
-          We collect your donations and pay you out to your bank via Stripe every{' '}
-          {settings.payout_interval_days} days.
-        </p>
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <PageHeader
+        title="Payouts"
+        description={`We collect your donations and pay you out to your bank via Stripe every ${settings.payout_interval_days} days.`}
+      />
 
       <div className="card">
         <p className="text-sm text-white/50">Available balance</p>
