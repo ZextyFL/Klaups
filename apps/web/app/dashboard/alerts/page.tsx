@@ -44,11 +44,14 @@ export default async function AlertsPage() {
               Browser source
             </span>
           </div>
-          <div className="relative aspect-[2/1] min-h-[280px] overflow-hidden bg-[#070707]">
+          <div className="relative aspect-[2/1] min-h-[280px] overflow-hidden bg-[#111114]">
             <div
               aria-hidden
-              className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:32px_32px]"
+              className="absolute inset-0 opacity-70 [background-image:linear-gradient(45deg,#1d1d22_25%,transparent_25%),linear-gradient(-45deg,#1d1d22_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1d1d22_75%),linear-gradient(-45deg,transparent_75%,#1d1d22_75%)] [background-position:0_0,0_12px,12px_-12px,-12px_0] [background-size:24px_24px]"
             />
+            <span className="absolute left-4 top-4 rounded-full border border-white/[0.08] bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-white/35">
+              Transparency preview
+            </span>
             <iframe
               src={overlayUrl}
               title="Donation alert preview"
