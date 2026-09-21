@@ -109,8 +109,15 @@ function AlertTierCard({
 }) {
   const [minAmount, setMinAmount] = useState((tier.min_amount_cents / 100).toString());
   const [template, setTemplate] = useState(tier.message_template);
+  const [duration, setDuration] = useState(tier.display_seconds.toString());
   const soundInput = useRef<HTMLInputElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
+
+  function commitDuration() {
+    const seconds = Math.min(60, Math.max(1, Math.round(parseFloat(duration || '6'))));
+    setDuration(seconds.toString());
+    onChange({ display_seconds: seconds });
+  }
 
   return (
     <div className="card space-y-3">
@@ -143,6 +150,23 @@ function AlertTierCard({
           onChange={(e) => setTemplate(e.target.value)}
           onBlur={() => onChange({ message_template: template })}
         />
+      </div>
+
+      <div>
+        <label className="label">How long the alert stays on screen (seconds)</label>
+        <input
+          className="input max-w-[140px]"
+          type="number"
+          min={1}
+          max={60}
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
+          onBlur={commitDuration}
+        />
+        <p className="mt-1 text-xs text-white/40">
+          The image and message disappear after this long. Your sound plays to the end regardless —
+          it isn&apos;t cut off even if it&apos;s longer than this.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
