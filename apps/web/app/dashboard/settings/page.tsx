@@ -9,7 +9,7 @@ export default async function SettingsPage() {
   const items: { title: string; description: string; href: string; icon: IconName }[] = [
     {
       title: 'Account & security',
-      description: `Login, password and account details for ${user.email ?? 'your account'}.`,
+      description: `Google login and account details for ${user.email ?? 'your account'}.`,
       href: '/dashboard/account',
       icon: 'shield',
     },
@@ -24,6 +24,18 @@ export default async function SettingsPage() {
       description: 'Change your public donation link and default currency.',
       href: '/dashboard/donation-link',
       icon: 'heart',
+    },
+    {
+      title: 'TikTok gift reactions',
+      description: 'Per-gift sounds, volume, visuals, testing and the LIVE gift history.',
+      href: '/dashboard/tiktok-gifts',
+      icon: 'gift',
+    },
+    {
+      title: 'Stream browser sources',
+      description: 'Copy the all-in-one Stream Kit or individual OBS/TikTok LIVE Studio widgets.',
+      href: '/dashboard/widgets',
+      icon: 'grid',
     },
     {
       title: 'Connections & TTS',
