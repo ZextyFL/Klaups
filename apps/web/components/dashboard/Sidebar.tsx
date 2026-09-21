@@ -30,7 +30,8 @@ function groups(verified: boolean): NavGroup[] {
     {
       title: 'Streaming',
       items: [
-        { href: '/dashboard/alerts', label: 'Alerts', icon: 'bell' },
+        { href: '/dashboard/alerts', label: 'Donation Alerts', icon: 'bell' },
+        { href: '/dashboard/tiktok-gifts', label: 'TikTok Gifts', icon: 'gift' },
         { href: '/dashboard/soundboard', label: 'Soundboard', icon: 'music' },
         { href: '/dashboard/widgets', label: 'Widgets', icon: 'grid' },
         { href: '/dashboard/goals', label: 'Goals', icon: 'target' },
