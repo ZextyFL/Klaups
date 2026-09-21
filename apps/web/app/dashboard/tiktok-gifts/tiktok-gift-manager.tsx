@@ -91,6 +91,7 @@ export function TikTokGiftManager({
   const [error, setError] = useState<string | null>(null);
   const [alertsEnabled, setAlertsEnabled] = useState(initialSettings.alertsEnabled);
   const [showGiftVisuals, setShowGiftVisuals] = useState(initialSettings.showGiftVisuals);
+  const [volumeDrafts, setVolumeDrafts] = useState<Record<string, number>>({});
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -252,6 +253,7 @@ export function TikTokGiftManager({
 
       {filtered.map((gift) => {
         const soundChoice = gift.soundUrl?.startsWith('builtin:') ? gift.soundUrl : gift.soundUrl ? 'custom' : '';
+        const displayVolume = volumeDrafts[gift.giftId] ?? gift.volume;
 
         return (
           <div key={gift.giftId} className="card rounded-3xl p-0 overflow-hidden">
@@ -349,22 +351,27 @@ export function TikTokGiftManager({
               <div>
                 <div className="flex items-center justify-between">
                   <label className="label">Volume</label>
-                  <span className="text-xs font-medium text-white/45">{gift.volume}%</span>
+                  <span className="text-xs font-medium text-white/45">{displayVolume}%</span>
                 </div>
                 <input
                   type="range"
                   min={0}
                   max={100}
                   step={5}
-                  value={gift.volume}
+                  value={displayVolume}
                   className="mt-2 w-full accent-pink-500"
                   onChange={(e) => {
                     const value = Number(e.target.value);
-                    // Optimistic visual feedback through DOM value; persist on release.
-                    e.currentTarget.setAttribute('data-value', String(value));
+                    setVolumeDrafts((current) => ({ ...current, [gift.giftId]: value }));
                   }}
-                  onMouseUp={(e) => void saveGift(gift, { volume: Number((e.target as HTMLInputElement).value) })}
-                  onTouchEnd={(e) => void saveGift(gift, { volume: Number((e.target as HTMLInputElement).value) })}
+                  onPointerUp={(e) => {
+                    const value = Number((e.target as HTMLInputElement).value);
+                    void saveGift(gift, { volume: value });
+                  }}
+                  onKeyUp={(e) => {
+                    const value = Number((e.target as HTMLInputElement).value);
+                    void saveGift(gift, { volume: value });
+                  }}
                 />
               </div>
 
