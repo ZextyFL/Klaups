@@ -13,8 +13,13 @@ export async function POST(request: Request) {
   const donorName: string = (body?.donorName ?? 'Anonymous').toString().slice(0, 40);
   const message: string = (body?.message ?? '').toString().slice(0, 200);
 
-  if (!slug || !amountCents || amountCents < 100 || amountCents > 100_000_00) {
-    return NextResponse.json({ error: 'Invalid donation amount' }, { status: 400 });
+  if (
+    !slug ||
+    !Number.isInteger(amountCents) ||
+    amountCents < 100 ||
+    amountCents > 500_000
+  ) {
+    return NextResponse.json({ error: 'Donation amount must be between 1 and 5,000.' }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -32,7 +37,7 @@ export async function POST(request: Request) {
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
-    payment_method_types: ['card'],
+    automatic_payment_methods: { enabled: true },
     line_items: [
       {
         quantity: 1,
