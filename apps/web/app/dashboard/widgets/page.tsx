@@ -3,6 +3,7 @@ import { getCurrentCreator } from '@/lib/get-current-creator';
 import { siteUrl } from '@/lib/site-url';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { Icons, type IconName } from '@/components/dashboard/icons';
+import { TestSendButton } from '@/components/dashboard/TestSendButton';
 import { CopyField } from '../copy-field';
 
 export default async function WidgetsPage() {
@@ -18,6 +19,7 @@ export default async function WidgetsPage() {
     url: string;
     settingsHref?: string;
     settingsLabel?: string;
+    test?: 'chat' | 'donation';
   }[] = [
     {
       name: 'Chat + TTS',
@@ -27,6 +29,7 @@ export default async function WidgetsPage() {
       url: `${base}/chat?${t}`,
       settingsHref: '/dashboard/integrations',
       settingsLabel: 'TTS settings',
+      test: 'chat',
     },
     {
       name: 'Chat + TTS (right side)',
@@ -34,6 +37,7 @@ export default async function WidgetsPage() {
       description: 'Same widget, docked to the right edge of your stream.',
       size: '600 × 500',
       url: `${base}/chat?${t}&side=right`,
+      test: 'chat',
     },
     {
       name: 'Donation alerts',
@@ -43,6 +47,7 @@ export default async function WidgetsPage() {
       url: `${base}/alerts?${t}`,
       settingsHref: '/dashboard/alerts',
       settingsLabel: 'Alert tiers',
+      test: 'donation',
     },
     {
       name: 'Daily goal bar',
@@ -66,7 +71,7 @@ export default async function WidgetsPage() {
     <div>
       <PageHeader
         title="Widgets"
-        description="Add any of these to OBS as a Browser Source. Transparent background, no plugins."
+        description="Add any of these as a Browser Source — works in OBS, TikTok LIVE Studio, Streamlabs, or anything else that supports one. Transparent background, no plugins."
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -87,22 +92,44 @@ export default async function WidgetsPage() {
               <div className="mt-4">
                 <CopyField label="Browser source URL" value={w.url} />
               </div>
-              {w.settingsHref && (
-                <Link href={w.settingsHref} className="btn-ghost mt-3 text-sm">
-                  {w.settingsLabel} <Icons.arrow className="h-4 w-4" />
-                </Link>
-              )}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                {w.settingsHref && (
+                  <Link href={w.settingsHref} className="btn-ghost text-sm">
+                    {w.settingsLabel} <Icons.arrow className="h-4 w-4" />
+                  </Link>
+                )}
+                {w.test === 'chat' && (
+                  <TestSendButton
+                    endpoint="/api/test/chat"
+                    body={{ message: 'This is a test chat message!' }}
+                    label="Send test message"
+                  />
+                )}
+                {w.test === 'donation' && (
+                  <TestSendButton
+                    endpoint="/api/test/donation"
+                    body={{ amountCents: 500, donorName: 'Test Donor' }}
+                    label="Send test donation"
+                  />
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
       <div className="card mt-6 rounded-2xl text-sm text-white/50">
-        <p className="font-medium text-white">Adding a widget to OBS</p>
+        <p className="font-medium text-white">Adding a widget</p>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
-          <li>Sources → + → Browser</li>
+          <li>
+            <span className="text-white/70">OBS or TikTok LIVE Studio</span> (it&apos;s built on OBS,
+            same steps): Sources → + → Browser
+          </li>
+          <li>
+            <span className="text-white/70">Streamlabs / XSplit</span>: Add Source → Browser Source
+          </li>
           <li>Paste the URL, set the width/height shown on the card</li>
-          <li>Tick &quot;Control audio via OBS&quot; for the Chat + TTS and Alerts widgets so you hear them</li>
+          <li>Enable audio for the source so the Chat + TTS and Alerts widgets can be heard</li>
         </ol>
       </div>
     </div>

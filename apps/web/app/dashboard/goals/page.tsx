@@ -16,10 +16,10 @@ export default async function GoalsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <PageHeader title="Daily goal" description="A live-updating goal bar you can add to your stream as an OBS browser source." />
+      <PageHeader title="Daily goal" description="A live-updating goal bar you can add to your stream as a browser-source widget." />
 
       <div className="card">
-        <CopyField label="OBS browser source URL" value={overlayUrl} />
+        <CopyField label="Browser source URL" value={overlayUrl} />
         <p className="mt-2 text-xs text-white/40">Recommended size: 480×80, transparent background.</p>
       </div>
 

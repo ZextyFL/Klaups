@@ -36,7 +36,7 @@ export default async function IntegrationsPage({
       )}
 
       <div className="card space-y-4">
-        <CopyField label="OBS chat / TTS browser source URL" value={chatOverlayUrl} />
+        <CopyField label="Chat / TTS browser source URL" value={chatOverlayUrl} />
         <CopyField label="Same, docked on the right side" value={chatOverlayUrlRight} />
         <CopyField label="Live viewer count overlay" value={viewerOverlayUrl} />
       </div>

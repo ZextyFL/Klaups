@@ -19,10 +19,12 @@ const MAX_LINES = 8;
 export function ChatFeed({
   overlayToken,
   voiceName,
+  speak = true,
   side = 'left',
 }: {
   overlayToken: string;
   voiceName?: string | null;
+  speak?: boolean;
   side?: 'left' | 'right';
 }) {
   const [lines, setLines] = useState<Line[]>([]);
@@ -56,7 +58,7 @@ export function ChatFeed({
     const data = payload as ChatMessagePayload;
     counter.current += 1;
     setLines((prev) => [...prev.slice(-(MAX_LINES - 1)), { ...data, id: counter.current }]);
-    enqueueSpeech(`${data.username} says ${data.message}`);
+    if (speak) enqueueSpeech(`${data.username} says ${data.message}`);
   });
 
   const isRight = side === 'right';

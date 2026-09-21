@@ -3,7 +3,7 @@ import Link from 'next/link';
 const FEATURES = [
   {
     title: 'TikTok Live TTS',
-    body: 'Every chat message read aloud on stream, straight from an OBS browser source. No login required — just your username.',
+    body: 'Every chat message read aloud on stream, straight from a browser-source widget — works in OBS, TikTok LIVE Studio, Streamlabs. No login required — just your username.',
     span: 'lg:col-span-2',
     icon: (
       <path
@@ -85,7 +85,7 @@ const STEPS = [
   },
   {
     n: '02',
-    title: 'Drop overlays into OBS',
+    title: 'Drop overlays into your streaming app',
     body: 'Chat TTS, alerts and the goal bar are just browser-source URLs — no plugins to install.',
   },
   {

@@ -21,7 +21,7 @@ export default async function AlertsPage() {
       <PageHeader title="Donation alerts" description="Add a sound and image for donations. The highest tier under the donation amount wins." />
 
       <div className="card">
-        <CopyField label="OBS browser source URL" value={overlayUrl} />
+        <CopyField label="Browser source URL" value={overlayUrl} />
         <p className="mt-2 text-xs text-white/40">Recommended size: 800×400, transparent background.</p>
       </div>
 

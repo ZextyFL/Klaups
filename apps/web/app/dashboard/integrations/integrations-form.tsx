@@ -93,8 +93,8 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
             </button>
           </div>
           <p className="mt-1 text-xs text-white/40">
-            Voices come from the browser running the overlay (your OBS browser source), not this
-            dashboard — pick the one that sounds right here, it&apos;ll carry over as long as OBS has
+            Voices come from the browser running the overlay (OBS, TikTok LIVE Studio, etc.), not this
+            dashboard — pick the one that sounds right here, it&apos;ll carry over as long as that app has
             a matching voice installed.
           </p>
         </div>

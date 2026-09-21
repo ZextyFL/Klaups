@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { AlertSetting } from '@/lib/database.types';
+import { TestSendButton } from '@/components/dashboard/TestSendButton';
 
 export function AlertTiers({
   profileId,
@@ -169,6 +170,12 @@ function AlertTierCard({
             onChange={(e) => e.target.files?.[0] && onUploadImage(e.target.files[0])}
           />
         </div>
+        <TestSendButton
+          endpoint="/api/test/donation"
+          body={{ amountCents: tier.min_amount_cents + 1, donorName: 'Test Donor' }}
+          label="Send test alert"
+          className="btn-accent text-sm"
+        />
       </div>
     </div>
   );
