@@ -87,6 +87,7 @@ async function handleDonationPaid(session: Stripe.Checkout.Session) {
     imageUrl: alert?.image_url ?? null,
     displaySeconds: alert?.display_seconds ?? 6,
     messageTemplate: alert?.message_template ?? '{name} donated {amount}!',
+    preset: alert?.preset ?? 'clean',
     speak:
       settings.tts_enabled && amountCents >= settings.min_tts_amount_cents
         ? `${donation.donor_name} donated ${(amountCents / 100).toFixed(2)} ${donation.currency.toUpperCase()}${
