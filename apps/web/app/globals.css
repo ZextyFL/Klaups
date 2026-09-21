@@ -81,3 +81,48 @@ h3 {
   background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 3px 3px;
 }
+
+
+/* Creator controls */
+select.input {
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+select.input option {
+  background: #0e0e12;
+  color: #f5f5f7;
+}
+
+input[type='range'] {
+  height: 6px;
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(244, 114, 182, 0.8);
+  outline-offset: 3px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.16) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.14);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
