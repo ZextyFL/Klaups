@@ -50,6 +50,15 @@ export default async function WidgetsPage() {
       test: 'donation',
     },
     {
+      name: 'TikTok Gift Alerts',
+      icon: 'gift',
+      description: 'Transparent gift visuals plus the exact sound configured for each TikTok gift.',
+      size: '800 × 400',
+      url: `${base}/tiktok-gifts?${t}`,
+      settingsHref: '/dashboard/tiktok-gifts',
+      settingsLabel: 'Gift sounds',
+    },
+    {
       name: 'Soundboard audio',
       icon: 'music',
       description: 'Hidden realtime audio source used by your Klaups soundboard buttons and keybinds.',
