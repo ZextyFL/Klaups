@@ -32,6 +32,8 @@ export interface CreatorSettings {
   tiktok_display_name: string | null;
   tiktok_avatar_url: string | null;
   tiktok_last_seen_at: string | null;
+  tiktok_verified: boolean;
+  tiktok_verified_at: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarded: boolean;
   stripe_payouts_enabled: boolean;
@@ -129,4 +131,69 @@ export interface SongRequest {
   artist_name: string | null;
   status: 'queued' | 'failed' | 'no_match';
   created_at: string;
+}
+
+
+export interface TikTokConnection {
+  profile_id: string;
+  open_id: string;
+  union_id: string | null;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  profile_deep_link: string | null;
+  connected_at: string;
+  updated_at: string;
+}
+
+export interface TikTokSeenGift {
+  id: string;
+  profile_id: string;
+  gift_id: string;
+  gift_name: string;
+  image_url: string | null;
+  diamond_count: number | null;
+  times_received: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface TikTokGiftAlert {
+  id: string;
+  profile_id: string;
+  gift_id: string;
+  gift_name: string;
+  enabled: boolean;
+  sound_url: string | null;
+  volume: number;
+  display_seconds: number;
+  show_visual: boolean;
+  show_sender: boolean;
+  show_gift_image: boolean;
+  message_template: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TikTokGiftSettings {
+  profile_id: string;
+  alerts_enabled: boolean;
+  default_volume: number;
+  default_display_seconds: number;
+  show_gift_visuals: boolean;
+  config_revision: number;
+  updated_at: string;
+}
+
+export interface TikTokGiftEvent {
+  id: string;
+  profile_id: string;
+  gift_id: string;
+  gift_name: string;
+  sender_name: string | null;
+  sender_unique_id: string | null;
+  repeat_count: number;
+  diamond_count: number | null;
+  gift_image_url: string | null;
+  received_at: string;
 }
