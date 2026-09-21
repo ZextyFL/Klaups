@@ -72,6 +72,12 @@ export const Icons = {
       <path d="m9 12 2 2 4-4" />
     </Svg>
   ),
+  settings: (p: IconProps) => (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
+    </Svg>
+  ),
   mic: (p: IconProps) => (
     <Svg {...p}>
       <rect x="9" y="3" width="6" height="11" rx="3" />
