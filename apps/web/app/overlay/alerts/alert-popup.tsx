@@ -101,23 +101,21 @@ export function AlertPopup({
 
   const panelClass =
     preset === 'hype'
-      ? 'border-orange-300/35 bg-gradient-to-br from-orange-500/85 via-red-500/80 to-fuchsia-600/80 shadow-[0_0_70px_rgba(249,115,22,0.35)]'
+      ? 'drop-shadow-[0_12px_35px_rgba(249,115,22,0.45)]'
       : preset === 'neon'
-        ? 'border-fuchsia-300/35 bg-black/75 shadow-[0_0_55px_rgba(217,70,239,0.45)]'
+        ? 'drop-shadow-[0_12px_35px_rgba(217,70,239,0.5)]'
         : preset === 'minimal'
-          ? 'border-white/10 bg-black/70 shadow-xl'
-          : 'border-white/15 bg-black/80 shadow-[0_20px_70px_rgba(0,0,0,0.5)]';
+          ? 'drop-shadow-[0_8px_22px_rgba(0,0,0,0.75)]'
+          : 'drop-shadow-[0_10px_28px_rgba(0,0,0,0.75)]';
 
   return (
     <div className="flex min-h-screen items-center justify-center p-6 text-center">
       <div
-        className={`relative w-full max-w-2xl overflow-hidden rounded-[32px] border px-7 py-7 text-white backdrop-blur-xl ${panelClass} animate-[klaupsAlertIn_0.45s_cubic-bezier(.2,.8,.2,1)]`}
+        className={`relative w-full max-w-2xl px-7 py-7 text-white ${panelClass} animate-[klaupsAlertIn_0.45s_cubic-bezier(.2,.8,.2,1)]`}
       >
         {preset === 'neon' && (
           <>
-            <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-fuchsia-300 to-transparent" />
-            <div className="pointer-events-none absolute -left-14 top-1/2 h-28 w-28 -translate-y-1/2 rounded-full bg-fuchsia-500/30 blur-3xl" />
-            <div className="pointer-events-none absolute -right-14 top-1/2 h-28 w-28 -translate-y-1/2 rounded-full bg-indigo-500/30 blur-3xl" />
+            <div className="pointer-events-none absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fuchsia-500/20 blur-3xl" />
           </>
         )}
 
@@ -131,10 +129,10 @@ export function AlertPopup({
           <div
             className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-black ${
               preset === 'hype'
-                ? 'bg-white/20'
+                ? 'bg-orange-500/20 ring-1 ring-orange-200/30'
                 : preset === 'neon'
-                  ? 'border border-fuchsia-300/30 bg-fuchsia-500/10 text-fuchsia-200'
-                  : 'bg-white/[0.08]'
+                  ? 'bg-fuchsia-500/15 text-fuchsia-200 ring-1 ring-fuchsia-300/30'
+                  : 'bg-white/10 ring-1 ring-white/15'
             }`}
           >
             ♥
@@ -142,7 +140,7 @@ export function AlertPopup({
         )}
 
         <p
-          className={`font-bold tracking-tight ${
+          className={`font-bold tracking-tight [text-shadow:0_3px_12px_rgba(0,0,0,0.95)] ${
             preset === 'minimal' ? 'text-2xl' : 'text-3xl sm:text-4xl'
           }`}
         >
@@ -152,7 +150,9 @@ export function AlertPopup({
         {current.message && (
           <p
             className={`mx-auto mt-3 max-w-xl leading-6 ${
-              preset === 'hype' ? 'text-white/90' : 'text-white/70'
+              preset === 'hype'
+                ? 'text-white/95 [text-shadow:0_2px_8px_rgba(0,0,0,0.95)]'
+                : 'text-white/80 [text-shadow:0_2px_8px_rgba(0,0,0,0.95)]'
             }`}
           >
             “{current.message}”
