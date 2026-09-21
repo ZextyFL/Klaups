@@ -42,6 +42,15 @@ async function loadCurrentCreator() {
     redirect('/login');
   }
 
+  const providers = Array.isArray(user.app_metadata?.providers)
+    ? user.app_metadata.providers
+    : [user.app_metadata?.provider].filter(Boolean);
+
+  if (!providers.includes('google')) {
+    await supabase.auth.signOut();
+    redirect('/login?error=Klaups+only+supports+Google+sign+in');
+  }
+
   const load = () =>
     Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
