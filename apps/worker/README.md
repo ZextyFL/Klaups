@@ -1,31 +1,66 @@
-# Klaups worker
+# Klaups TikTok LIVE worker
 
-Connects to each live-enabled creator's TikTok LIVE room (via the unofficial
-[`tiktok-live-connector`](https://www.npmjs.com/package/tiktok-live-connector)
-library — no TikTok API key needed) and forwards chat messages, gifts and
-`!sr` song-request commands to the web app in real time over Supabase
-Realtime broadcast. It also queues song requests on the creator's Spotify.
+The worker is the always-on realtime side of Klaups. It connects to creators'
+TikTok LIVE rooms with `tiktok-live-connector`, forwards chat/viewer events,
+records completed gifts and broadcasts gift-specific reactions into each
+creator's private Supabase Realtime overlay topic.
 
-**This cannot run on Netlify.** Netlify Functions are request/response and
-can't hold an open connection to TikTok for the duration of a live stream.
-Run this as a normal always-on Node process instead — Railway, Render, Fly.io,
-a small VPS, or a background worker dyno all work. It polls Supabase every 30
-seconds for creators with `tiktok_worker_enabled = true` and connects/
-disconnects automatically, so one deployment serves every creator.
+Official TikTok Login Kit in `apps/web` verifies creator ownership. The LIVE
+worker is separate because Login Kit does not provide the consumer LIVE event
+stream used for chat/gift reactions.
 
-## Setup
+## Requirements
+
+- Node.js 20+
+- A running Klaups Supabase project with migrations through at least
+  `0011_tiktok_gift_worker_helpers.sql`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- Spotify credentials if song requests are enabled
+
+## What it handles
+
+- TikTok LIVE chat -> Klaups chat/TTS overlay
+- LIVE viewer count -> viewer widget/dashboard
+- completed gift events -> gift history + discovered gift catalog
+- per-gift MP3/built-in sound mapping -> `tiktok_gift` realtime event
+- streak gifts -> waits for `repeatEnd` so one streak creates one reaction
+- Spotify song-request commands
+- automatic reconnects for creators with `tiktok_worker_enabled = true`
+
+Gift configuration is cached briefly per creator so a busy LIVE does not query
+Supabase for every gift. Dashboard changes are picked up after the cache
+refresh interval.
+
+## Run locally
 
 ```bash
-cp .env.example .env   # fill in SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SPOTIFY_CLIENT_ID/SECRET
+cp .env.example .env
 npm install
-npm run dev             # or `npm start` in production
+npm run typecheck
+npm run dev
 ```
 
-## Notes
+Production:
 
-- `tiktok-live-connector` reverse-engineers TikTok's internal Webcast
-  protocol; TikTok can change it at any time, which is why the library warns
-  it isn't "production ready." Treat outages as expected and keep the worker
-  auto-reconnecting (already handled — see `reconcile()` in `src/index.ts`).
-- A creator only shows up here once they flip "Listen to my live chat &
-  gifts" on in the dashboard's Integrations page.
+```bash
+npm install
+npm start
+```
+
+## Deployment
+
+Do **not** deploy this as a Netlify Function. A LIVE connection needs a
+persistent process.
+
+Good targets include Railway, Render, Fly.io, or a VPS. One worker deployment
+can serve many creators; `reconcile()` polls Supabase and starts/stops
+connections automatically.
+
+## Operational notes
+
+`tiktok-live-connector` reverse-engineers TikTok's LIVE/Webcast protocol.
+TikTok can change that protocol, so monitor worker logs and expect occasional
+upstream breakage. The official TikTok OAuth connection in Klaups does not
+remove this limitation; it is used for creator identity/ownership, not LIVE
+gift ingestion.
