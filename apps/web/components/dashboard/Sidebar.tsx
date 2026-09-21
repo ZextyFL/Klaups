@@ -12,7 +12,10 @@ function groups(verified: boolean): NavGroup[] {
   return [
     {
       title: '',
-      items: [{ href: '/dashboard', label: 'Overview', icon: 'home' }],
+      items: [
+        { href: '/dashboard', label: 'Overview', icon: 'home' },
+        { href: '/dashboard/activity', label: 'Live Activity', icon: 'activity' },
+      ],
     },
     {
       title: 'Money',
