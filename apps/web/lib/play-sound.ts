@@ -50,7 +50,7 @@ export function playBuiltinSound(
       break;
     case 'hype':
       tone(context, 320, now, 0.18, 'sawtooth', 0.08 * level);
-      tone(context, 440, now + 0.12, 0.18, 'sawtooth', 0.08);
+      tone(context, 440, now + 0.12, 0.18, 'sawtooth', 0.08 * level);
       tone(context, 660, now + 0.24, 0.28, 'square', 0.08 * level);
       break;
     case 'airhorn':
@@ -66,7 +66,7 @@ export function playBuiltinSound(
     case 'chime':
     default:
       tone(context, 659.25, now, 0.22, 'sine', 0.09 * level);
-      tone(context, 783.99, now + 0.12, 0.25, 'sine', 0.08);
+      tone(context, 783.99, now + 0.12, 0.25, 'sine', 0.08 * level);
       tone(context, 987.77, now + 0.26, 0.35, 'sine', 0.07 * level);
       break;
   }
