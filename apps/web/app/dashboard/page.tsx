@@ -54,12 +54,20 @@ export default async function DashboardOverview() {
         title={`Overview`}
         description={`Welcome back, ${profile.display_name || profile.username}.`}
         action={
-          <TestSendButton
-            endpoint="/api/test/donation"
-            body={{ amountCents: 500, donorName: 'Klaups Test' }}
-            label="Test alert"
-            className="btn-secondary"
-          />
+          <div className="flex flex-wrap gap-2">
+            <TestSendButton
+              endpoint="/api/test/donation"
+              body={{ amountCents: 500, donorName: 'Klaups Test' }}
+              label="Test donation"
+              className="btn-secondary"
+            />
+            <TestSendButton
+              endpoint="/api/test/tiktok-gift"
+              body={{}}
+              label="Test gift"
+              className="btn-secondary"
+            />
+          </div>
         }
       />
 
@@ -238,9 +246,10 @@ export default async function DashboardOverview() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {[
-          ['/dashboard/alerts', 'Alerts', 'Customize & test', 'bell'],
+          ['/dashboard/alerts', 'Donation Alerts', 'Customize & test', 'bell'],
+          ['/dashboard/tiktok-gifts', 'TikTok Gifts', 'Gift sounds & reactions', 'gift'],
           ['/dashboard/soundboard', 'Soundboard', 'Sounds & hotkeys', 'music'],
           ['/dashboard/widgets', 'Widgets', 'OBS browser sources', 'grid'],
           ['/dashboard/settings', 'Settings', 'Account & platform', 'settings'],
