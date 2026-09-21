@@ -24,15 +24,17 @@ interface QueueItem extends DonationPayload {
 export function AlertPopup({
   overlayToken,
   voiceName,
+  language,
 }: {
   overlayToken: string;
   voiceName?: string | null;
+  language?: string | null;
 }) {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [current, setCurrent] = useState<QueueItem | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const counter = useRef(0);
-  const voiceRef = useSpeechVoice(voiceName);
+  const voiceRef = useSpeechVoice(voiceName, language);
 
   useOverlayChannel(overlayToken, ['donation'], (event, payload) => {
     if (event !== 'donation') return;
@@ -55,7 +57,10 @@ export function AlertPopup({
       }
       if (next.speak && 'speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(next.speak);
-        if (voiceRef.current) utterance.voice = voiceRef.current;
+        if (voiceRef.current) {
+          utterance.voice = voiceRef.current;
+          utterance.lang = voiceRef.current.lang;
+        }
         window.speechSynthesis.speak(utterance);
       }
 

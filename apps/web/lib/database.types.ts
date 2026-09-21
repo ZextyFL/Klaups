@@ -21,6 +21,7 @@ export interface CreatorSettings {
   min_tts_amount_cents: number;
   tts_enabled: boolean;
   tts_voice: string | null;
+  tts_language: string | null;
   song_request_enabled: boolean;
   song_request_command: string;
   tiktok_username: string | null;

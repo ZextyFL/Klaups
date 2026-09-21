@@ -19,11 +19,13 @@ const MAX_LINES = 8;
 export function ChatFeed({
   overlayToken,
   voiceName,
+  language,
   speak = true,
   side = 'left',
 }: {
   overlayToken: string;
   voiceName?: string | null;
+  language?: string | null;
   speak?: boolean;
   side?: 'left' | 'right';
 }) {
@@ -31,7 +33,7 @@ export function ChatFeed({
   const counter = useRef(0);
   const speechQueue = useRef<string[]>([]);
   const speaking = useRef(false);
-  const voiceRef = useSpeechVoice(voiceName);
+  const voiceRef = useSpeechVoice(voiceName, language);
 
   function enqueueSpeech(text: string) {
     if (!('speechSynthesis' in window)) return;
@@ -47,7 +49,10 @@ export function ChatFeed({
     }
     speaking.current = true;
     const utterance = new SpeechSynthesisUtterance(next);
-    if (voiceRef.current) utterance.voice = voiceRef.current;
+    if (voiceRef.current) {
+      utterance.voice = voiceRef.current;
+      utterance.lang = voiceRef.current.lang;
+    }
     utterance.onend = drainSpeechQueue;
     utterance.onerror = drainSpeechQueue;
     window.speechSynthesis.speak(utterance);

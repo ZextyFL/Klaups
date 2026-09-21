@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { CreatorSettings } from '@/lib/database.types';
 import { Toggle } from '@/components/ui/Toggle';
+import { languageLabel } from '@/lib/voice-language';
 import { TikTokConnectCard } from './tiktok-connect-card';
 
 export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
@@ -16,9 +17,19 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
   const [songRequestEnabled, setSongRequestEnabled] = useState(settings.song_request_enabled);
   const [songCommand, setSongCommand] = useState(settings.song_request_command);
   const [ttsVoice, setTtsVoice] = useState(settings.tts_voice ?? 'default');
+  const [ttsLanguage, setTtsLanguage] = useState(settings.tts_language ?? '');
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Every language the local speech engine actually has a voice for.
+  const languages = Array.from(new Set(voices.map((v) => v.lang)))
+    .map((code) => ({ code, label: languageLabel(code) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const visibleVoices = (ttsLanguage ? voices.filter((v) => v.lang === ttsLanguage) : voices)
+    .slice()
+    .sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
 
   // Voice list is only available client-side and can arrive asynchronously.
   useEffect(() => {
@@ -39,6 +50,7 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
       .update({
         tts_enabled: ttsEnabled,
         tts_voice: ttsVoice,
+        tts_language: ttsLanguage || null,
         min_tts_amount_cents: Math.round(parseFloat(minTts || '0') * 100),
         song_request_enabled: songRequestEnabled,
         song_request_command: songCommand || '!sr',
@@ -53,9 +65,12 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
   function previewVoice() {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     const utterance = new SpeechSynthesisUtterance('This is how your TikTok chat will sound.');
-    if (ttsVoice !== 'default') {
-      const voice = voices.find((v) => v.name === ttsVoice);
-      if (voice) utterance.voice = voice;
+    const voice =
+      (ttsVoice !== 'default' ? voices.find((v) => v.name === ttsVoice) : undefined) ??
+      (ttsLanguage ? voices.find((v) => v.lang === ttsLanguage) : undefined);
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
     }
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
@@ -78,13 +93,44 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
           <input className="input" type="number" min={0} value={minTts} onChange={(e) => setMinTts(e.target.value)} />
         </div>
         <div>
-          <label className="label">Voice</label>
+          <label className="label">Language</label>
+          <select
+            className="input"
+            value={ttsLanguage}
+            onChange={(e) => {
+              const next = e.target.value;
+              setTtsLanguage(next);
+              // Drop the selected voice if it isn't in the new language.
+              if (next && !voices.some((v) => v.name === ttsVoice && v.lang === next)) {
+                setTtsVoice('default');
+              }
+            }}
+          >
+            <option value="">All languages ({voices.length} voices)</option>
+            {languages.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label} — {l.code} ({voices.filter((v) => v.lang === l.code).length})
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-white/40">
+            Picking a language filters the voice list below, and is used as a fallback if the exact
+            voice you chose isn&apos;t installed on the machine running your overlay.
+          </p>
+        </div>
+
+        <div>
+          <label className="label">
+            Voice{ttsLanguage ? ` — ${visibleVoices.length} in ${languageLabel(ttsLanguage)}` : ''}
+          </label>
           <div className="flex gap-2">
             <select className="input" value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)}>
-              <option value="default">Browser default</option>
-              {voices.map((v) => (
-                <option key={v.name} value={v.name}>
-                  {v.name} ({v.lang})
+              <option value="default">
+                {ttsLanguage ? `Any ${languageLabel(ttsLanguage)} voice` : 'Browser default'}
+              </option>
+              {visibleVoices.map((v) => (
+                <option key={`${v.name}-${v.lang}`} value={v.name}>
+                  {v.name} — {languageLabel(v.lang)} ({v.lang}){v.localService ? '' : ' · online'}
                 </option>
               ))}
             </select>
@@ -93,9 +139,9 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
             </button>
           </div>
           <p className="mt-1 text-xs text-white/40">
-            Voices come from the browser running the overlay (OBS, TikTok LIVE Studio, etc.), not this
-            dashboard — pick the one that sounds right here, it&apos;ll carry over as long as that app has
-            a matching voice installed.
+            These {voices.length} voices come from the browser you&apos;re on right now. The overlay uses
+            whatever the app running it (OBS, TikTok LIVE Studio, etc.) has installed — if your exact
+            pick is missing there, it falls back to any voice in the language above.
           </p>
         </div>
       </div>

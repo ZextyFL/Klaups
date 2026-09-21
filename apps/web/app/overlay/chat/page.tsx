@@ -12,6 +12,7 @@ export default async function ChatOverlayPage({
     <ChatFeed
       overlayToken={settings.overlay_token}
       voiceName={settings.tts_voice}
+      language={settings.tts_language}
       speak={settings.tts_enabled}
       side={searchParams.side === 'right' ? 'right' : 'left'}
     />

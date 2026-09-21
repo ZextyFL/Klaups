@@ -12,6 +12,7 @@ export default async function AlertsOverlayPage({
     <AlertPopup
       overlayToken={settings.overlay_token}
       voiceName={settings.tts_enabled ? settings.tts_voice : null}
+      language={settings.tts_language}
     />
   );
 }
