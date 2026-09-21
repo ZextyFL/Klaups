@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useOverlayChannel } from '@/lib/use-overlay-channel';
 import { useSpeechVoice } from '@/lib/use-speech-voice';
 import { formatCents } from '@/lib/format';
@@ -34,7 +34,6 @@ export function AlertPopup({
 }) {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [current, setCurrent] = useState<QueueItem | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const counter = useRef(0);
   const voiceRef = useSpeechVoice(voiceName, language);
 
@@ -44,39 +43,53 @@ export function AlertPopup({
     setQueue((items) => [...items, { ...(payload as DonationPayload), id: counter.current }]);
   });
 
-  const playNext = useCallback(() => {
-    setQueue((items) => {
-      if (items.length === 0) {
-        setCurrent(null);
-        return items;
-      }
-
-      const [next, ...rest] = items;
-      setCurrent(next);
-      playSoundUrl(next.soundUrl);
-
-      if (next.speak && 'speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(next.speak);
-        if (voiceRef.current) {
-          utterance.voice = voiceRef.current;
-          utterance.lang = voiceRef.current.lang;
-        }
-        window.speechSynthesis.speak(utterance);
-      }
-
-      timeoutRef.current = setTimeout(playNext, next.displaySeconds * 1000);
-      return rest;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  // Pull the next alert from the queue only when nothing is currently showing.
   useEffect(() => {
-    if (!current && queue.length > 0) playNext();
+    if (current || queue.length === 0) return;
+
+    const [next, ...rest] = queue;
+    setCurrent(next);
+    setQueue(rest);
+  }, [current, queue]);
+
+  // Own the alert lifetime in one effect. This prevents re-renders from
+  // accidentally cancelling the dismissal timer.
+  useEffect(() => {
+    if (!current) return;
+
+    const seconds = Number.isFinite(Number(current.displaySeconds))
+      ? Math.min(60, Math.max(1, Number(current.displaySeconds)))
+      : 6;
+    const durationMs = seconds * 1000;
+
+    const stopSound = playSoundUrl(current.soundUrl);
+
+    if (current.speak && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(current.speak);
+      if (voiceRef.current) {
+        utterance.voice = voiceRef.current;
+        utterance.lang = voiceRef.current.lang;
+      }
+      window.speechSynthesis.speak(utterance);
+    }
+
+    const timer = window.setTimeout(() => {
+      stopSound?.();
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setCurrent(null);
+    }, durationMs);
 
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      window.clearTimeout(timer);
+      stopSound?.();
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
     };
-  }, [queue, current, playNext]);
+  }, [current, voiceRef]);
 
   if (!current) return null;
 
