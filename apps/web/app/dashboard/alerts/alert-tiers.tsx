@@ -423,19 +423,6 @@ function AlertTierCard({
             </div>
           </div>
 
-          <div className="hidden">
-            <label className="label">Message</label>
-            <input
-              className="input"
-              value={template}
-              onChange={(e) => setTemplate(e.target.value)}
-              onBlur={() => onChange({ message_template: template })}
-            />
-            <p className="mt-1 text-xs text-white/35">
-              Use {'{name}'} and {'{amount}'} as placeholders.
-            </p>
-          </div>
-
           <div>
             <label className="label">Alert sound</label>
             <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
