@@ -43,9 +43,10 @@ queryable), so the token never needs to double as a database read key.
    `0003_tiktok_status.sql` adds the TikTok connection-status columns.
    **If you skip this, signup will land you on an error page** — the app
    self-heals missing profile rows, but it can't create tables for you.
-   Auth → URL Configuration: set Site URL to your Netlify URL and add
-   `https://<your-site>/auth/callback` to Redirect URLs so email
-   confirmation links log people in.
+   Auth → URL Configuration: set Site URL to `https://klaups.com` and add
+   `https://klaups.com/auth/callback` to Redirect URLs so email
+   confirmation links log people in. Keep the `*.netlify.app` equivalents
+   there too until the domain is fully cut over.
 3. Auth → Providers: email/password is enabled by default. Decide whether
    you want "Confirm email" on — the signup flow works either way.
 4. Copy the Project URL, anon key and service_role key into
@@ -57,7 +58,7 @@ queryable), so the token never needs to double as a database read key.
    get started, Express accounts).
 2. Get your API keys (Developers → API keys) into `STRIPE_SECRET_KEY`.
 3. Add a webhook endpoint pointing at
-   `https://<your-site>/api/webhooks/stripe` listening for
+   `https://klaups.com/api/webhooks/stripe` listening for
    `checkout.session.completed`, `account.updated`, `payout.paid`,
    `payout.failed`. Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
 4. `PLATFORM_FEE_BPS` is your cut per donation (500 = 5%); it's only used
@@ -71,8 +72,8 @@ accumulates and the scheduled payout job skips them.
 ### 3. Spotify
 
 1. Create an app at developer.spotify.com/dashboard.
-2. Add redirect URI `https://<your-site>/api/spotify/callback` (and a
-   `http://localhost:3000/...` one for local dev).
+2. Add redirect URI `https://klaups.com/api/spotify/callback` (and a
+   `http://localhost:3000/api/spotify/callback` one for local dev).
 3. Put the client id/secret into `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`
    (needed by both `apps/web` and `apps/worker`).
 4. Song requests use `POST /me/player/queue`, which requires **Spotify
@@ -100,6 +101,26 @@ only way to read TikTok LIVE chat from outside TikTok today.
 **Worker → anywhere that runs a persistent Node process** (Railway, Render,
 Fly.io, a VPS). See `apps/worker/README.md`. It is intentionally not part of
 the Netlify deploy.
+
+### Connecting klaups.com
+
+1. Netlify → your site → **Domain management** → **Add a domain** → enter
+   `klaups.com` → also add `www.klaups.com` as a domain alias (Netlify then
+   redirects one to the other automatically).
+2. At your domain registrar's DNS settings, add:
+   - Apex (`klaups.com`): an **A** record → `75.2.60.5` (Netlify's load
+     balancer), or use Netlify DNS / an ALIAS/ANAME record if your registrar
+     supports it — Netlify's domain settings page shows the exact record it
+     wants once you add the domain, which takes priority over this if they
+     differ.
+   - `www`: a **CNAME** record → `klaups.netlify.app`.
+3. Wait for DNS to propagate (minutes to a few hours), then Netlify
+   auto-provisions a free HTTPS certificate.
+4. Set `NEXT_PUBLIC_SITE_URL=https://klaups.com` in Netlify env vars and
+   redeploy — donation checkout, Spotify OAuth, and email confirmation links
+   all build off this value.
+5. Update the Supabase Auth Site URL/Redirect URLs and the Spotify app's
+   redirect URI to `https://klaups.com/...` as noted above.
 
 ## Local development
 

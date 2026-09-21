@@ -9,11 +9,26 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://klaups.com'),
   title: 'Klaups — live tools for streamers',
   description:
     'TikTok Live TTS, Spotify song requests, donation links, daily goals and alerts for streamers.',
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+  },
+  openGraph: {
+    title: 'Klaups — live tools for streamers',
+    description:
+      'TikTok Live TTS, Spotify song requests, donation links, daily goals and alerts for streamers.',
+    url: 'https://klaups.com',
+    siteName: 'Klaups',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Klaups — live tools for streamers',
+    description:
+      'TikTok Live TTS, Spotify song requests, donation links, daily goals and alerts for streamers.',
   },
 };
 
