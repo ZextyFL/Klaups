@@ -402,8 +402,24 @@ export function TikTokGiftManager({
                     Show sender
                     <Switch checked={gift.showSender} label="Show sender" onChange={(showSender) => void saveGift(gift, { showSender })} />
                   </label>
+                  <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-sm text-white/55">
+                    Gift image
+                    <Switch checked={gift.showGiftImage} label="Show gift image" onChange={(showGiftImage) => void saveGift(gift, { showGiftImage })} />
+                  </label>
                 </div>
               </div>
+            </div>
+
+            <div className="border-t border-white/[0.06] px-5 py-4">
+              <label className="label">On-screen message</label>
+              <input
+                className="input"
+                defaultValue={gift.messageTemplate}
+                onBlur={(e) => void saveGift(gift, { messageTemplate: e.target.value || '{name} sent {gift} x{count}!' })}
+              />
+              <p className="mt-1.5 text-xs text-white/30">
+                Variables: {'{name}'} · {'{gift}'} · {'{count}'}
+              </p>
             </div>
           </div>
         );
