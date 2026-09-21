@@ -70,10 +70,10 @@ export default async function IntegrationsPage({
       <div className="card">
         <h2 className="font-semibold">How live chat reading works</h2>
         <p className="mt-2 text-sm text-white/60">
-          TikTok LIVE has no public API for third-party TTS bots, so Klaups runs a small always-on
-          worker (deployed separately from this website — see the README) that connects to your
-          TikTok LIVE room while you&apos;re live, and forwards chat, gifts and song-request
-          commands here in real time.
+          Klaups verifies creator ownership with official TikTok Login Kit. TikTok does not expose
+          consumer LIVE chat and gift events through that API, so the realtime LIVE listener remains
+          a separate always-on worker. It forwards chat, completed gift streaks, viewers and song
+          requests into your private Klaups overlay channel.
         </p>
       </div>
     </div>
