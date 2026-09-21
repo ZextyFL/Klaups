@@ -190,7 +190,8 @@ async function startConnection(creator: ActiveCreator) {
   });
 
   connection.on(WebcastEvent.ROOM_USER, async (data) => {
-    const count = Number(data.total ?? 0);
+    const room = data as unknown as { viewerCount?: number; total?: number };
+    const count = Number(room.viewerCount ?? room.total ?? 0);
     if (!Number.isFinite(count)) return;
 
     const now = Date.now();
