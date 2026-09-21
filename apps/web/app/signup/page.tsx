@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { signUp } from '@/app/auth/actions';
 import { AuthShell } from '@/components/AuthShell';
+import { GoogleAuthButton } from '@/components/GoogleAuthButton';
 
 export default function SignupPage({ searchParams }: { searchParams: { error?: string } }) {
   return (
@@ -16,7 +17,17 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
         </p>
       )}
 
-      <form action={signUp} className="mt-6 space-y-4">
+      <div className="mt-6">
+        <GoogleAuthButton source="signup" label="Sign up with Google" />
+      </div>
+
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-white/10" />
+        <span className="text-xs font-medium uppercase tracking-[0.14em] text-white/30">or</span>
+        <div className="h-px flex-1 bg-white/10" />
+      </div>
+
+      <form action={signUp} className="space-y-4">
         <div>
           <label className="label" htmlFor="username">
             Username
@@ -27,6 +38,7 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
             name="username"
             placeholder="yourname"
             pattern="[a-zA-Z0-9_\-]+"
+            autoComplete="username"
             required
           />
           <p className="mt-1 text-xs text-white/40">This becomes klaups.com/donate/yourname</p>
@@ -35,7 +47,14 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
           <label className="label" htmlFor="email">
             Email
           </label>
-          <input className="input" id="email" name="email" type="email" required />
+          <input
+            className="input"
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+          />
         </div>
         <div>
           <label className="label" htmlFor="password">
@@ -47,6 +66,7 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
             name="password"
             type="password"
             minLength={8}
+            autoComplete="new-password"
             required
           />
         </div>
