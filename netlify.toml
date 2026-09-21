@@ -1,0 +1,14 @@
+# The Next.js site lives in apps/web; everything Netlify builds/deploys is
+# scoped there. The TikTok/Spotify worker (apps/worker) is NOT deployed by
+# Netlify — it needs a persistent process, see apps/worker/README.md.
+[build]
+  base = "apps/web"
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# process-payouts.ts in apps/web/netlify/functions runs once a day
+# automatically (schedule is set in the function itself via `export const
+# config = { schedule: '@daily' }`), no extra config needed here.
