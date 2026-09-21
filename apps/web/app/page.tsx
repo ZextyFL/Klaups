@@ -82,7 +82,7 @@ export default function HomePage() {
               <div className="grid min-h-[420px] md:grid-cols-[180px_1fr]">
                 <aside className="hidden border-r border-white/[0.06] p-4 md:block">
                   <p className="text-sm font-semibold">Kl<span className="text-brand-500">aups</span></p>
-                  <div className="mt-7 space-y-2 text-xs text-white/38">
+                  <div className="mt-7 space-y-2 text-xs text-white/[0.38]">
                     {['Overview','Donations','Donation Alerts','TikTok Gifts','Soundboard','Widgets','Goals','Payouts'].map((item, i) => (
                       <div key={item} className={`rounded-lg px-3 py-2 ${i === 3 ? 'bg-white/[0.08] text-white' : ''}`}>{item}</div>
                     ))}
@@ -134,7 +134,7 @@ export default function HomePage() {
                 <FeatureIcon name={icon} />
               </div>
               <h3 className="mt-5 font-semibold">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-white/42">{body}</p>
+              <p className="mt-2 text-sm leading-6 text-white/[0.42]">{body}</p>
             </div>
           ))}
         </div>
@@ -159,7 +159,7 @@ export default function HomePage() {
             ].map(([n,title,body]) => (
               <div key={n} className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-black/30 p-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-xs font-semibold text-brand-300">{n}</span>
-                <div><p className="font-medium">{title}</p><p className="mt-1 text-sm text-white/38">{body}</p></div>
+                <div><p className="font-medium">{title}</p><p className="mt-1 text-sm text-white/[0.38]">{body}</p></div>
               </div>
             ))}
           </div>
@@ -172,7 +172,7 @@ export default function HomePage() {
         <h2 className="mx-auto mt-3 max-w-3xl text-balance text-4xl font-semibold tracking-[-0.04em] sm:text-6xl">
           Your community already reacts. Give them something to react with.
         </h2>
-        <p className="mx-auto mt-5 max-w-xl text-lg text-white/42">Turn gifts and support into moments people remember, clip and come back for.</p>
+        <p className="mx-auto mt-5 max-w-xl text-lg text-white/[0.42]">Turn gifts and support into moments people remember, clip and come back for.</p>
         <Link href="/login" className="btn-accent mt-9 px-8 py-3.5 text-base">Open Klaups →</Link>
       </section>
 
