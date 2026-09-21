@@ -50,16 +50,20 @@ async function startConnection(creator: ActiveCreator) {
 
   connection.on(ControlEvent.CONNECTED, (state) => {
     console.log(`[${creator.tiktok_username}] connected, roomId=${state.roomId}`);
+    void setStatus(creator.profile_id, 'live', `Connected to room ${state.roomId}`);
   });
 
   connection.on(ControlEvent.DISCONNECTED, ({ code, reason }) => {
     console.log(`[${creator.tiktok_username}] disconnected (${code}) ${reason ?? ''}`);
     connections.delete(creator.profile_id);
+    void setStatus(creator.profile_id, 'offline', reason || 'Stream ended');
   });
 
   connection.on(ControlEvent.ERROR, ({ info, exception }) => {
     console.error(`[${creator.tiktok_username}] error`, info, exception?.message);
   });
+
+  await setStatus(creator.profile_id, 'connecting', null);
 
   try {
     await connection.connect();
@@ -67,8 +71,30 @@ async function startConnection(creator: ActiveCreator) {
   } catch (err) {
     // Most commonly: the creator isn't live right now. We'll try again on
     // the next poll cycle instead of crashing the worker.
-    console.log(`[${creator.tiktok_username}] connect failed: ${(err as Error).message}`);
+    const message = (err as Error).message ?? 'Could not connect';
+    console.log(`[${creator.tiktok_username}] connect failed: ${message}`);
+    const isOffline = /offline|not live|LIVE has ended/i.test(message);
+    await setStatus(
+      creator.profile_id,
+      isOffline ? 'offline' : 'error',
+      isOffline ? 'Not live right now — will connect automatically when you go live' : message
+    );
   }
+}
+
+async function setStatus(
+  profileId: string,
+  status: 'disconnected' | 'connecting' | 'live' | 'offline' | 'error',
+  message: string | null
+) {
+  await supabase
+    .from('creator_settings')
+    .update({
+      tiktok_status: status,
+      tiktok_status_message: message,
+      tiktok_last_seen_at: status === 'live' ? new Date().toISOString() : undefined,
+    })
+    .eq('profile_id', profileId);
 }
 
 async function handleSongRequest(creator: ActiveCreator, requestedBy: string, query: string) {
@@ -116,6 +142,7 @@ async function reconcile() {
       connection.disconnect().catch(() => {});
       connections.delete(profileId);
       creatorByProfile.delete(profileId);
+      await setStatus(profileId, 'disconnected', null);
     }
   }
 

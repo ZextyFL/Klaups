@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { siteUrl } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
 
-function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-}
 
 export async function POST() {
   const supabase = createClient();

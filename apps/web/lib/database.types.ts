@@ -25,6 +25,9 @@ export interface CreatorSettings {
   song_request_command: string;
   tiktok_username: string | null;
   tiktok_worker_enabled: boolean;
+  tiktok_status: 'disconnected' | 'connecting' | 'live' | 'offline' | 'error';
+  tiktok_status_message: string | null;
+  tiktok_last_seen_at: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarded: boolean;
   stripe_payouts_enabled: boolean;

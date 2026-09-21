@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
 import { stripe, applicationFeeCents } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { siteUrl } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
 
-function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);

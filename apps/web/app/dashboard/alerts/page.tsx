@@ -1,10 +1,8 @@
 import { getCurrentCreator } from '@/lib/get-current-creator';
 import { AlertTiers } from './alert-tiers';
 import { CopyField } from '../copy-field';
+import { siteUrl } from '@/lib/site-url';
 
-function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-}
 
 export default async function AlertsPage() {
   const { settings, supabase, user } = await getCurrentCreator();

@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { createClient } from '@/lib/supabase/server';
+import { siteUrl } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
 
 const SCOPES = ['user-read-playback-state', 'user-modify-playback-state', 'user-read-currently-playing'];
 
-function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-}
 
 export async function GET() {
   const supabase = createClient();

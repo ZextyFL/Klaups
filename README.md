@@ -39,7 +39,13 @@ queryable), so the token never needs to double as a database read key.
 2. Run the migrations in `supabase/migrations/` in order (SQL editor, or
    `supabase db push` if you link the project with the CLI). `0001_init.sql`
    creates the schema + RLS; `0002_storage.sql` creates the `avatars`,
-   `banners` and `alerts` storage buckets and their policies.
+   `banners` and `alerts` storage buckets and their policies;
+   `0003_tiktok_status.sql` adds the TikTok connection-status columns.
+   **If you skip this, signup will land you on an error page** — the app
+   self-heals missing profile rows, but it can't create tables for you.
+   Auth → URL Configuration: set Site URL to your Netlify URL and add
+   `https://<your-site>/auth/callback` to Redirect URLs so email
+   confirmation links log people in.
 3. Auth → Providers: email/password is enabled by default. Decide whether
    you want "Confirm email" on — the signup flow works either way.
 4. Copy the Project URL, anon key and service_role key into

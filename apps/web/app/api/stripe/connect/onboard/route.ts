@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
+import { siteUrl } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
 
-function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-}
 
 // Creates (or reuses) the creator's Stripe Express connected account and
 // returns an onboarding link. Payouts on that account are set to "manual" —

@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { siteUrl } from '@/lib/site-url';
 
 function slugify(input: string) {
   return input
@@ -9,6 +10,13 @@ function slugify(input: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
     .slice(0, 32);
+}
+
+function configError() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return 'Supabase is not configured yet (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY missing).';
+  }
+  return null;
 }
 
 export async function signUp(formData: FormData) {
@@ -20,11 +28,17 @@ export async function signUp(formData: FormData) {
     redirect('/signup?error=Missing+fields');
   }
 
+  const missing = configError();
+  if (missing) redirect(`/signup?error=${encodeURIComponent(missing)}`);
+
   const supabase = createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { username } },
+    options: {
+      data: { username },
+      emailRedirectTo: `${siteUrl()}/auth/callback`,
+    },
   });
 
   if (error || !data.user) {
@@ -32,11 +46,11 @@ export async function signUp(formData: FormData) {
   }
 
   // profiles / creator_settings / balances rows are created by the
-  // handle_new_user() DB trigger, so this works whether or not email
-  // confirmation is required.
+  // handle_new_user() DB trigger (and self-healed in getCurrentCreator), so
+  // this works whether or not email confirmation is required.
 
   if (!data.session) {
-    redirect('/login?notice=Check+your+email+to+confirm+your+account');
+    redirect('/login?notice=Check+your+email+for+a+confirmation+link%2C+then+log+in');
   }
 
   redirect('/dashboard');
@@ -45,6 +59,9 @@ export async function signUp(formData: FormData) {
 export async function signIn(formData: FormData) {
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
+
+  const missing = configError();
+  if (missing) redirect(`/login?error=${encodeURIComponent(missing)}`);
 
   const supabase = createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
