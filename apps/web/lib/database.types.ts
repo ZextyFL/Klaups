@@ -49,6 +49,7 @@ export interface AlertSetting {
   sound_url: string | null;
   image_url: string | null;
   display_seconds: number;
+  volume: number;
   message_template: string;
   preset: 'clean' | 'hype' | 'neon' | 'minimal';
   created_at: string;
