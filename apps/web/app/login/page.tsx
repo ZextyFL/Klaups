@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { signIn } from '@/app/auth/actions';
 import { AuthShell } from '@/components/AuthShell';
+import { GoogleAuthButton } from '@/components/GoogleAuthButton';
 
 export default function LoginPage({
   searchParams,
@@ -23,18 +24,42 @@ export default function LoginPage({
         </p>
       )}
 
-      <form action={signIn} className="mt-6 space-y-4">
+      <div className="mt-6">
+        <GoogleAuthButton source="login" />
+      </div>
+
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-white/10" />
+        <span className="text-xs font-medium uppercase tracking-[0.14em] text-white/30">or</span>
+        <div className="h-px flex-1 bg-white/10" />
+      </div>
+
+      <form action={signIn} className="space-y-4">
         <div>
           <label className="label" htmlFor="email">
             Email
           </label>
-          <input className="input" id="email" name="email" type="email" required />
+          <input
+            className="input"
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+          />
         </div>
         <div>
           <label className="label" htmlFor="password">
             Password
           </label>
-          <input className="input" id="password" name="password" type="password" required />
+          <input
+            className="input"
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
         </div>
         <button className="btn-accent w-full" type="submit">
           Log in
