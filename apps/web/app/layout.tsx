@@ -10,25 +10,25 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://klaups.com'),
-  title: 'Klaups — live tools for streamers',
+  title: 'Klaups — TikTok LIVE creator control center',
   description:
-    'TikTok Live TTS, Spotify song requests, donation links, daily goals and alerts for streamers.',
+    'TikTok LIVE gift sounds, transparent alerts, donations, TTS, goals, widgets, soundboard and creator payouts in one dashboard.',
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
   },
   openGraph: {
-    title: 'Klaups — live tools for streamers',
+    title: 'Klaups — TikTok LIVE creator control center',
     description:
-      'TikTok Live TTS, Spotify song requests, donation links, daily goals and alerts for streamers.',
+      'TikTok LIVE gift sounds, transparent alerts, donations, TTS, goals, widgets and payouts in one dashboard.',
     url: 'https://klaups.com',
     siteName: 'Klaups',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Klaups — live tools for streamers',
+    title: 'Klaups — TikTok LIVE creator control center',
     description:
-      'TikTok Live TTS, Spotify song requests, donation links, daily goals and alerts for streamers.',
+      'Gift sounds, transparent alerts, donations, TTS, goals and widgets for TikTok LIVE creators.',
   },
 };
 
