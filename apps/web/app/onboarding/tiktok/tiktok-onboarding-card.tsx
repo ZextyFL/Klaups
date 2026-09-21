@@ -64,7 +64,7 @@ export function TikTokOnboardingCard({
 
       {error && (
         <p className="mt-4 rounded-xl border border-red-400/15 bg-red-500/10 p-3 text-sm text-red-300">
-          {decodeURIComponent(error)}
+          {error}
         </p>
       )}
 
