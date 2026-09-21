@@ -71,16 +71,25 @@ export default async function DashboardOverview() {
       >
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div
-              className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-                live ? 'bg-green-500/15 text-green-300' : 'bg-white/[0.06] text-white/50'
-              }`}
-            >
-              <Icons.eye className="h-6 w-6" />
-            </div>
+            {connected && settings.tiktok_avatar_url ? (
+              <div
+                className="h-12 w-12 shrink-0 rounded-2xl bg-ink-700 bg-cover bg-center"
+                style={{ backgroundImage: `url(${settings.tiktok_avatar_url})` }}
+              />
+            ) : (
+              <div
+                className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                  live ? 'bg-green-500/15 text-green-300' : 'bg-white/[0.06] text-white/50'
+                }`}
+              >
+                <Icons.eye className="h-6 w-6" />
+              </div>
+            )}
             <div>
               <p className="text-sm text-white/50">
-                {connected ? `@${settings.tiktok_username} on TikTok` : 'TikTok not connected'}
+                {connected
+                  ? `${settings.tiktok_display_name || settings.tiktok_username} · @${settings.tiktok_username}`
+                  : 'TikTok not connected'}
               </p>
               {live ? (
                 <p className="text-2xl font-semibold tracking-tight">

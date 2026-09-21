@@ -28,6 +28,8 @@ export interface CreatorSettings {
   tiktok_status: 'disconnected' | 'connecting' | 'live' | 'offline' | 'error';
   tiktok_status_message: string | null;
   tiktok_viewer_count: number;
+  tiktok_display_name: string | null;
+  tiktok_avatar_url: string | null;
   tiktok_last_seen_at: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarded: boolean;
