@@ -14,6 +14,7 @@ interface DonationPayload {
   soundUrl: string | null;
   imageUrl: string | null;
   displaySeconds: number;
+  volume?: number;
   messageTemplate: string;
   preset?: 'clean' | 'hype' | 'neon' | 'minimal';
   speak: string | null;
@@ -62,7 +63,7 @@ export function AlertPopup({
       : 6;
     const durationMs = seconds * 1000;
 
-    const stopSound = playSoundUrl(current.soundUrl);
+    const stopSound = playSoundUrl(current.soundUrl, Math.min(1, Math.max(0, Number(current.volume ?? 100) / 100)));
 
     if (current.speak && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
