@@ -55,6 +55,12 @@ export const Icons = {
       <path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10Z" />
     </Svg>
   ),
+  gift: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M4 10h16v10H4zM3 7h18v3H3zM12 7v13" />
+      <path d="M12 7H8.5A2.5 2.5 0 1 1 11 4.5L12 7Zm0 0h3.5A2.5 2.5 0 1 0 13 4.5L12 7Z" />
+    </Svg>
+  ),
   bank: (p: IconProps) => (
     <Svg {...p}>
       <path d="M3 10 12 4l9 6M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18" />
