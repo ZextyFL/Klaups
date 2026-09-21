@@ -86,6 +86,7 @@ async function handleDonationPaid(session: Stripe.Checkout.Session) {
     soundUrl: alert?.sound_url ?? null,
     imageUrl: alert?.image_url ?? null,
     displaySeconds: alert?.display_seconds ?? 6,
+    volume: alert?.volume ?? 100,
     messageTemplate: alert?.message_template ?? '{name} donated {amount}!',
     preset: alert?.preset ?? 'clean',
     speak:
