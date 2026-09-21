@@ -48,7 +48,20 @@ export interface AlertSetting {
   image_url: string | null;
   display_seconds: number;
   message_template: string;
+  preset: 'clean' | 'hype' | 'neon' | 'minimal';
   created_at: string;
+}
+
+export interface SoundboardSound {
+  id: string;
+  profile_id: string;
+  name: string;
+  sound_url: string;
+  keybind: string | null;
+  sort_order: number;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DailyGoal {
