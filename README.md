@@ -24,7 +24,7 @@ it out to their bank. Creators never see Stripe's default daily payout
 schedule — their connected accounts are created with a manual payout
 schedule and only ever get paid out by that scheduled function.
 
-Overlays (chat/TTS, alerts, goal bar) are plain pages at
+Overlays (chat/TTS, alerts, goal bar, soundboard audio) are plain pages at
 `/overlay/<name>?token=<overlay_token>` meant to be added to OBS as a
 browser source. The token is a random UUID that authenticates the overlay
 instead of a login — same model as Streamlabs/StreamElements widget URLs.
@@ -41,6 +41,9 @@ queryable), so the token never needs to double as a database read key.
    creates the schema + RLS; `0002_storage.sql` creates the `avatars`,
    `banners` and `alerts` storage buckets and their policies;
    `0003_tiktok_status.sql` adds the TikTok connection-status columns.
+   Run all later migrations too: `0008_creator_tools.sql` adds alert presets,
+   the soundboard table + storage bucket, and `0009_oauth_profile_defaults.sql`
+   improves profile creation for Google/OAuth users.
    **If you skip this, signup will land you on an error page** — the app
    self-heals missing profile rows, but it can't create tables for you.
    Auth → URL Configuration: set Site URL to `https://klaups.com` and add
@@ -49,7 +52,12 @@ queryable), so the token never needs to double as a database read key.
    there too until the domain is fully cut over.
 3. Auth → Providers: email/password is enabled by default. Decide whether
    you want "Confirm email" on — the signup flow works either way.
-4. Copy the Project URL, anon key and service_role key into
+4. To enable **Continue with Google**, create Google OAuth credentials,
+   enable the Google provider in Supabase Auth → Providers, and use the
+   Supabase-provided OAuth callback URL in Google Cloud. Keep
+   `https://klaups.com/auth/callback` in Supabase Redirect URLs; Klaups
+   exchanges the returned auth code there and sends the creator to the dashboard.
+5. Copy the Project URL, anon key and service_role key into
    `apps/web/.env.example` → `.env.local` (or Netlify env vars).
 
 ### 2. Stripe
