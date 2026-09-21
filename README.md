@@ -1,157 +1,221 @@
 # Klaups
 
-Live tools for TikTok streamers: chat text-to-speech, Spotify song requests,
-a personal donation link, a daily goal bar, sound+image donation alerts, and
-automatic Stripe payouts every 4 days.
+Klaups is a creator control center for TikTok LIVE streamers: Google-only login, verified TikTok creator onboarding, gift-specific sounds, transparent donation/gift alerts, a soundboard, TTS, Spotify song requests, goals, browser-source widgets, creator donation pages and Stripe Connect payouts.
 
 ## Architecture
 
 ```
-apps/web      Next.js site (deployed to Netlify) — dashboard, donation page,
-              OBS overlay pages, Stripe checkout + webhook, Spotify OAuth.
-apps/worker   Small always-on Node service — connects to TikTok LIVE chat,
-              forwards events to apps/web over Supabase Realtime, queues
-              Spotify song requests. Deployed separately (NOT Netlify).
-supabase/     SQL migrations: schema, RLS policies, storage buckets.
+apps/web      Next.js dashboard, creator pages, OAuth, Stripe, overlays and tests.
+apps/worker   Always-on Node 20+ process for TikTok LIVE chat/gifts/viewer events.
+supabase/     PostgreSQL schema, RLS, storage policies and helper RPCs.
 ```
 
-Money flow: a viewer pays through Stripe Checkout on the platform's Stripe
-account → the webhook credits the creator's balance in our own ledger and
-bumps their daily goal in real time → every day a scheduled Netlify function
-checks who's due a payout (every `payout_interval_days`, default 4) and
-moves their balance to their Stripe **Connect Express** account, then pays
-it out to their bank. Creators never see Stripe's default daily payout
-schedule — their connected accounts are created with a manual payout
-schedule and only ever get paid out by that scheduled function.
+### Identity and LIVE events are intentionally separate
 
-Overlays (chat/TTS, alerts, goal bar, soundboard audio) are plain pages at
-`/overlay/<name>?token=<overlay_token>` meant to be added to OBS as a
-browser source. The token is a random UUID that authenticates the overlay
-instead of a login — same model as Streamlabs/StreamElements widget URLs.
-Events reach them via Supabase Realtime **broadcast** (push-only, nothing
-queryable), so the token never needs to double as a database read key.
+Klaups uses **official TikTok Login Kit** to prove that a creator controls a TikTok account. OAuth tokens are stored in the server-only `tiktok_oauth_tokens` table and are never readable by the normal browser client.
+
+TikTok Login Kit does not expose the private email used to create a TikTok account, so Klaups does **not** pretend it can compare a Google Gmail address with a TikTok login email. The binding is:
+
+```
+Google/Supabase user -> Klaups profile -> unique TikTok open_id
+```
+
+TikTok LIVE chat/gifts/viewer events are handled separately by the always-on worker using `tiktok-live-connector`. The worker is unofficial and can break if TikTok changes its LIVE protocol.
+
+## Main creator tools
+
+- **TikTok Gift Reactor** — gifts discovered during LIVE automatically appear in the dashboard. Each gift can have its own MP3/WAV/OGG or built-in sound, volume, duration, visual settings and message template.
+- **Donation Alerts** — transparent OBS/TikTok LIVE Studio alerts with presets, GIF/image, sound, volume, TTS, duration and amount tiers.
+- **Soundboard** — built-in or uploaded sounds, dashboard hotkeys, and a browser-source audio output.
+- **Stream Kit** — one recommended browser source containing donation alerts, TikTok gift alerts, soundboard audio and the daily goal.
+- **Live Activity** — unified donation + TikTok gift activity feed.
+- **Donations** — modern public support page, Stripe Checkout, creator analytics and top supporters.
+- **Widgets** — chat/TTS, viewer count, donation alerts, gift alerts, goal, soundboard and Stream Kit URLs.
+- **Payouts** — Stripe Connect onboarding and the Klaups payout ledger.
+
+## Overlays
+
+Browser-source pages use the creator's random `overlay_token`. Keep these URLs private.
+
+```
+/overlay/stream-kit?token=...
+/overlay/alerts?token=...
+/overlay/tiktok-gifts?token=...
+/overlay/chat?token=...
+/overlay/goal?token=...
+/overlay/viewers?token=...
+/overlay/soundboard?token=...
+```
+
+Donation/gift overlay documents are forced transparent so they can sit over gameplay/video in OBS, TikTok LIVE Studio or Streamlabs.
 
 ## One-time setup
 
 ### 1. Supabase
 
-1. Create a project at supabase.com.
-2. Run the migrations in `supabase/migrations/` in order (SQL editor, or
-   `supabase db push` if you link the project with the CLI). `0001_init.sql`
-   creates the schema + RLS; `0002_storage.sql` creates the `avatars`,
-   `banners` and `alerts` storage buckets and their policies;
-   `0003_tiktok_status.sql` adds the TikTok connection-status columns.
-   Run all later migrations too: `0008_creator_tools.sql` adds alert presets,
-   the soundboard table + storage bucket, and `0009_oauth_profile_defaults.sql`
-   improves profile creation for Google/OAuth users.
-   **If you skip this, signup will land you on an error page** — the app
-   self-heals missing profile rows, but it can't create tables for you.
-   Auth → URL Configuration: set Site URL to `https://klaups.com` and add
-   `https://klaups.com/auth/callback` to Redirect URLs so email
-   confirmation links log people in. Keep the `*.netlify.app` equivalents
-   there too until the domain is fully cut over.
-3. Auth → Providers: email/password is enabled by default. Decide whether
-   you want "Confirm email" on — the signup flow works either way.
-4. To enable **Continue with Google**, create Google OAuth credentials,
-   enable the Google provider in Supabase Auth → Providers, and use the
-   Supabase-provided OAuth callback URL in Google Cloud. Keep
-   `https://klaups.com/auth/callback` in Supabase Redirect URLs; Klaups
-   exchanges the returned auth code there and sends the creator to the dashboard.
-5. Copy the Project URL, anon key and service_role key into
-   `apps/web/.env.example` → `.env.local` (or Netlify env vars).
+Create/link the Klaups Supabase project and run **every migration in `supabase/migrations/` in filename order**.
 
-### 2. Stripe
+Important later migrations include:
 
-1. Create a Stripe account and enable **Connect** (Dashboard → Connect →
-   get started, Express accounts).
-2. Get your API keys (Developers → API keys) into `STRIPE_SECRET_KEY`.
-3. Add a webhook endpoint pointing at
-   `https://klaups.com/api/webhooks/stripe` listening for
-   `checkout.session.completed`, `account.updated`, `payout.paid`,
-   `payout.failed`. Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
-4. `PLATFORM_FEE_BPS` is your cut per donation (500 = 5%); it's only used
-   for our own ledger math, not a real Stripe application fee, since
-   donations land on the platform account first (see Architecture above).
+- `0008_creator_tools.sql` — alert presets + soundboard.
+- `0009_oauth_profile_defaults.sql` — better OAuth-created profiles.
+- `0010_tiktok_identity_and_gift_alerts.sql` — TikTok identity, gift catalog/config/history and `gift-sounds` storage.
+- `0011_tiktok_gift_worker_helpers.sql` — atomic gift recording RPC for the worker.
+- `0012_donation_alert_volume.sql` — per-donation alert volume.
+- `0013_creator_donation_analytics.sql` — fast creator donation stats/top supporters.
 
-Payouts require each creator to finish Stripe Express onboarding from
-**Dashboard → Payouts** in the app — until then their balance just
-accumulates and the scheduled payout job skips them.
+Set Supabase Auth URL Configuration:
 
-### 3. Spotify
+- Site URL: `https://klaups.com`
+- Redirect URL: `https://klaups.com/auth/callback`
+- Also allow your Netlify preview/local callback URLs when testing.
 
-1. Create an app at developer.spotify.com/dashboard.
-2. Add redirect URI `https://klaups.com/api/spotify/callback` (and a
-   `http://localhost:3000/api/spotify/callback` one for local dev).
-3. Put the client id/secret into `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`
-   (needed by both `apps/web` and `apps/worker`).
-4. Song requests use `POST /me/player/queue`, which requires **Spotify
-   Premium** and an active playback device — the creator needs Spotify open
-   (desktop, mobile, or web player) while live.
+### 2. Google-only auth
 
-### 4. TikTok
+Klaups deliberately has no password login UI.
 
-Nothing to register — `apps/worker` reads a creator's public LIVE room via
-their TikTok username, no API key or login required. It's an unofficial,
-reverse-engineered connection (see `apps/worker/README.md`), which is the
-only way to read TikTok LIVE chat from outside TikTok today.
+In Supabase:
 
-## Deploying
+1. Authentication -> Providers -> enable **Google**.
+2. Configure the Google OAuth client ID/secret.
+3. Add the Supabase-provided Google OAuth callback URL to Google Cloud.
+4. **Disable Email/password auth** in the Klaups Supabase project if you want the provider disabled at the auth-service level too. The app itself also rejects non-Google dashboard sessions.
 
-**Web app → Netlify**
+Google auth opens in a popup. The callback exchanges the code server-side, posts success back to the opener and sends new creators to TikTok onboarding.
 
-- New site from Git, set the base directory implicitly via `netlify.toml`
-  (already configured: base `apps/web`, `@netlify/plugin-nextjs`).
-- Add every variable from `apps/web/.env.example` in Site settings →
-  Environment variables.
-- `apps/web/netlify/functions/process-payouts.ts` runs automatically once a
-  day (`schedule: '@daily'`) — no extra setup.
+### 3. TikTok Login Kit
 
-**Worker → anywhere that runs a persistent Node process** (Railway, Render,
-Fly.io, a VPS). See `apps/worker/README.md`. It is intentionally not part of
-the Netlify deploy.
+Create a TikTok for Developers app with Login Kit.
 
-### Connecting klaups.com
+Add:
 
-1. Netlify → your site → **Domain management** → **Add a domain** → enter
-   `klaups.com` → also add `www.klaups.com` as a domain alias (Netlify then
-   redirects one to the other automatically).
-2. At your domain registrar's DNS settings, add:
-   - Apex (`klaups.com`): an **A** record → `75.2.60.5` (Netlify's load
-     balancer), or use Netlify DNS / an ALIAS/ANAME record if your registrar
-     supports it — Netlify's domain settings page shows the exact record it
-     wants once you add the domain, which takes priority over this if they
-     differ.
-   - `www`: a **CNAME** record → `klaups.netlify.app`.
-3. Wait for DNS to propagate (minutes to a few hours), then Netlify
-   auto-provisions a free HTTPS certificate.
-4. Set `NEXT_PUBLIC_SITE_URL=https://klaups.com` in Netlify env vars and
-   redeploy — donation checkout, Spotify OAuth, and email confirmation links
-   all build off this value.
-5. Update the Supabase Auth Site URL/Redirect URLs and the Spotify app's
-   redirect URI to `https://klaups.com/...` as noted above.
+```
+https://klaups.com/api/tiktok/callback
+```
+
+as the redirect URI, then configure:
+
+```
+TIKTOK_CLIENT_KEY=
+TIKTOK_CLIENT_SECRET=
+TIKTOK_PROFILE_SCOPE_ENABLED=false
+```
+
+`user.info.basic` is enough to verify ownership using the creator's TikTok `open_id`.
+
+If TikTok approves `user.info.profile` for the app, set:
+
+```
+TIKTOK_PROFILE_SCOPE_ENABLED=true
+```
+
+and Klaups will also request/read the TikTok username automatically. Until then, a verified creator can enter their LIVE username during onboarding so the LIVE worker knows which room to watch.
+
+### 4. TikTok LIVE worker
+
+Deploy `apps/worker` as an always-on Node **20+** service on Railway, Render, Fly.io or a VPS — not as a Netlify function.
+
+Configure the worker variables from `apps/worker/.env.example`, especially:
+
+```
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=
+```
+
+The worker:
+
+- reconnects to enabled creators;
+- forwards chat and viewer updates;
+- waits until streak gifts finish before emitting the gift;
+- records gift history/discovery;
+- caches per-gift alert configuration briefly;
+- broadcasts gift events into the same private overlay realtime topic.
+
+### 5. Stripe
+
+Enable Stripe Connect Express and set the variables from `apps/web/.env.example`.
+
+Create a webhook endpoint:
+
+```
+https://klaups.com/api/webhooks/stripe
+```
+
+Listen for:
+
+- `checkout.session.completed`
+- `account.updated`
+- `payout.paid`
+- `payout.failed`
+
+Stripe Checkout uses automatic payment methods, so methods such as cards and eligible local methods can appear based on the Stripe account, currency and customer.
+
+Creators verify payout details through Dashboard -> Verify account.
+
+### 6. Spotify
+
+Create a Spotify app and add:
+
+```
+https://klaups.com/api/spotify/callback
+http://localhost:3000/api/spotify/callback
+```
+
+Configure `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` for both web and worker. Song queueing requires Spotify Premium and an active playback device.
+
+## Testing creator alerts
+
+The dashboard test buttons intentionally broadcast through the **same Supabase Realtime topic** as real events.
+
+- **Test donation** -> real donation alert browser source, but no fake financial record/balance change.
+- **Test gift** -> real TikTok gift overlay channel and that gift's configured sound.
+- **Preview sound** -> plays locally in the dashboard only.
+
+An alert's configured duration also stops uploaded audio, built-in audio and donation TTS so long files cannot keep playing after the visual disappears.
 
 ## Local development
 
 ```bash
-cd apps/web && npm install && cp .env.example .env.local && npm run dev
-cd apps/worker && npm install && cp .env.example .env && npm run dev
+cd apps/web
+npm install
+cp .env.example .env.local
+npm run dev
+
+cd apps/worker
+npm install
+cp .env.example .env
+npm run dev
 ```
 
-Use the Stripe CLI (`stripe listen --forward-to localhost:3000/api/webhooks/stripe`)
-to get a local webhook secret while testing donations.
+Useful checks:
 
-## Known limitations / things to harden before real money flows through this
+```bash
+cd apps/web && npm run typecheck && npm run build
+cd apps/worker && npm run typecheck
+```
 
-- The TikTok connection is unofficial and can break when TikTok changes its
-  protocol; it's the same approach every third-party TikTok chat/alert tool
-  uses, but it is not TikTok's own API.
-- The transfer-then-payout step in `process-payouts.ts` can fail if a
-  transfer hasn't cleared to "available" on the connected account yet; on
-  failure the payout row is marked `failed` and the balance is left intact
-  so the next daily run retries. Watch failed payouts in the Stripe
-  dashboard for now rather than assuming silent success.
-- Spotify tokens are stored as plaintext in `spotify_tokens` protected only
-  by RLS + the service-role boundary. Fine for an MVP; consider column-level
-  encryption (Supabase Vault/pgsodium) before wider rollout.
-- There's no admin/moderation surface yet (e.g. reviewing flagged donation
-  messages before they hit TTS/alerts).
+Use the Stripe CLI when testing payments locally:
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
+## Deployment notes
+
+The web app is configured for Netlify. Set every required variable in the Netlify environment and redeploy after changing OAuth settings.
+
+The TikTok LIVE worker must stay running independently. If a creator remains on “Connecting…” for a long time, check the worker process/logs and its Supabase service-role environment.
+
+## Before handling meaningful payment volume
+
+Klaups is still an MVP architecture. Before scaling real money flows, add/strengthen:
+
+- admin/moderation tooling for donation messages/TTS;
+- rate limiting and abuse controls on public donation/test endpoints;
+- monitoring/alerting for Stripe webhook and payout failures;
+- stronger secret/token-at-rest handling where appropriate;
+- clear creator/supporter terms, privacy policy, refunds/chargeback handling and support workflow;
+- backup/restore and incident procedures;
+- automated end-to-end tests for OAuth, Stripe, worker gift events and overlays.
