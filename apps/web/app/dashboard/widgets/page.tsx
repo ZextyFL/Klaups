@@ -22,6 +22,15 @@ export default async function WidgetsPage() {
     test?: 'chat' | 'donation';
   }[] = [
     {
+      name: 'Klaups Stream Kit',
+      icon: 'grid',
+      description: 'Recommended: donation alerts, TikTok gift alerts, soundboard audio and your daily goal in one browser source.',
+      size: '1920 × 1080',
+      url: `${base}/stream-kit?${t}`,
+      settingsHref: '/dashboard/alerts',
+      settingsLabel: 'Customize alerts',
+    },
+    {
       name: 'Chat + TTS',
       icon: 'chat',
       description: 'Live chat and gifts on screen, read aloud with the voice you picked.',
@@ -89,7 +98,7 @@ export default async function WidgetsPage() {
     <div>
       <PageHeader
         title="Widgets"
-        description="Add any of these as a Browser Source — works in OBS, TikTok LIVE Studio, Streamlabs, or anything else that supports one. Transparent background, no plugins."
+        description="Start with the all-in-one Stream Kit, or use separate browser sources when you want precise scene control. Works in OBS, TikTok LIVE Studio and Streamlabs."
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
