@@ -6,11 +6,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { profile, settings } = await getCurrentCreator();
 
   const live = settings.tiktok_worker_enabled && settings.tiktok_status === 'live';
+  const verified = settings.stripe_connect_onboarded && settings.stripe_payouts_enabled;
 
   return (
     <div className="relative min-h-screen bg-black lg:flex">
-      {/* Ambient light behind the glass panels — without this the blur has
-          nothing to blur and every card looks like plain dark grey. */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
@@ -26,10 +25,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         avatarUrl={profile.avatar_url}
         live={live}
         viewerCount={settings.tiktok_viewer_count}
+        verified={verified}
         signOutAction={signOut}
       />
       <main className="min-w-0 flex-1">
-        <div className="mx-auto max-w-5xl px-5 py-8 lg:px-10 lg:py-10">{children}</div>
+        <div className="mx-auto max-w-6xl px-5 py-8 lg:px-10 lg:py-10">{children}</div>
       </main>
     </div>
   );
