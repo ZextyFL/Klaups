@@ -1,6 +1,7 @@
 'use client';
 
 type BuiltinSound = 'chime' | 'cash' | 'hype' | 'airhorn' | 'applause';
+export type StopSound = () => void;
 
 function tone(
   context: AudioContext,
@@ -24,14 +25,18 @@ function tone(
   oscillator.stop(start + duration);
 }
 
-export function playBuiltinSound(name: BuiltinSound | string) {
+export function playBuiltinSound(name: BuiltinSound | string): StopSound | undefined {
   if (typeof window === 'undefined') return;
 
-  const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const AudioContextCtor =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
   if (!AudioContextCtor) return;
 
   const context = new AudioContextCtor();
   const now = context.currentTime + 0.01;
+  let stopped = false;
 
   switch (name) {
     case 'cash':
@@ -62,17 +67,44 @@ export function playBuiltinSound(name: BuiltinSound | string) {
       break;
   }
 
-  window.setTimeout(() => context.close().catch(() => {}), 1400);
+  const closeTimer = window.setTimeout(() => {
+    if (stopped) return;
+    stopped = true;
+    void context.close().catch(() => {});
+  }, 1400);
+
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    window.clearTimeout(closeTimer);
+    void context.close().catch(() => {});
+  };
 }
 
-export function playSoundUrl(soundUrl: string | null | undefined) {
+export function playSoundUrl(
+  soundUrl: string | null | undefined
+): StopSound | undefined {
   if (!soundUrl || typeof window === 'undefined') return;
 
   if (soundUrl.startsWith('builtin:')) {
-    playBuiltinSound(soundUrl.slice('builtin:'.length));
-    return;
+    return playBuiltinSound(soundUrl.slice('builtin:'.length));
   }
 
   const audio = new Audio(soundUrl);
+  let stopped = false;
+
   audio.play().catch(() => {});
+
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    audio.pause();
+    try {
+      audio.currentTime = 0;
+    } catch {
+      // Some streams do not allow seeking. Pausing is enough.
+    }
+    audio.src = '';
+    audio.load();
+  };
 }
