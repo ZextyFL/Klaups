@@ -8,6 +8,8 @@ const POLL_INTERVAL_MS = 30_000;
 
 const connections = new Map<string, TikTokLiveConnection>();
 const creatorByProfile = new Map<string, ActiveCreator>();
+const lastViewerCountWrite = new Map<string, number>();
+const VIEWER_COUNT_THROTTLE_MS = 5_000;
 
 function displayName(user: { nickname?: string; uniqueId?: string } | undefined) {
   return user?.nickname || user?.uniqueId || 'Someone';
@@ -48,6 +50,22 @@ async function startConnection(creator: ActiveCreator) {
     });
   });
 
+  connection.on(WebcastEvent.ROOM_USER, async (data) => {
+    const count = Number(data.total ?? 0);
+    if (!Number.isFinite(count)) return;
+
+    const now = Date.now();
+    const last = lastViewerCountWrite.get(creator.profile_id) ?? 0;
+    if (now - last < VIEWER_COUNT_THROTTLE_MS) return;
+    lastViewerCountWrite.set(creator.profile_id, now);
+
+    await supabase
+      .from('creator_settings')
+      .update({ tiktok_viewer_count: count })
+      .eq('profile_id', creator.profile_id);
+    await send(creator.overlay_token, 'viewer_count', { count });
+  });
+
   connection.on(ControlEvent.CONNECTED, (state) => {
     console.log(`[${creator.tiktok_username}] connected, roomId=${state.roomId}`);
     void setStatus(creator.profile_id, 'live', `Connected to room ${state.roomId}`);
@@ -56,7 +74,12 @@ async function startConnection(creator: ActiveCreator) {
   connection.on(ControlEvent.DISCONNECTED, ({ code, reason }) => {
     console.log(`[${creator.tiktok_username}] disconnected (${code}) ${reason ?? ''}`);
     connections.delete(creator.profile_id);
+    lastViewerCountWrite.delete(creator.profile_id);
     void setStatus(creator.profile_id, 'offline', reason || 'Stream ended');
+    void supabase
+      .from('creator_settings')
+      .update({ tiktok_viewer_count: 0 })
+      .eq('profile_id', creator.profile_id);
   });
 
   connection.on(ControlEvent.ERROR, ({ info, exception }) => {

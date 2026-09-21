@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useOverlayChannel } from '@/lib/use-overlay-channel';
+import { useSpeechVoice } from '@/lib/use-speech-voice';
 
 interface ChatMessagePayload {
   username: string;
@@ -15,11 +16,20 @@ interface Line extends ChatMessagePayload {
 
 const MAX_LINES = 8;
 
-export function ChatFeed({ overlayToken }: { overlayToken: string }) {
+export function ChatFeed({
+  overlayToken,
+  voiceName,
+  side = 'left',
+}: {
+  overlayToken: string;
+  voiceName?: string | null;
+  side?: 'left' | 'right';
+}) {
   const [lines, setLines] = useState<Line[]>([]);
   const counter = useRef(0);
   const speechQueue = useRef<string[]>([]);
   const speaking = useRef(false);
+  const voiceRef = useSpeechVoice(voiceName);
 
   function enqueueSpeech(text: string) {
     if (!('speechSynthesis' in window)) return;
@@ -35,6 +45,7 @@ export function ChatFeed({ overlayToken }: { overlayToken: string }) {
     }
     speaking.current = true;
     const utterance = new SpeechSynthesisUtterance(next);
+    if (voiceRef.current) utterance.voice = voiceRef.current;
     utterance.onend = drainSpeechQueue;
     utterance.onerror = drainSpeechQueue;
     window.speechSynthesis.speak(utterance);
@@ -48,12 +59,20 @@ export function ChatFeed({ overlayToken }: { overlayToken: string }) {
     enqueueSpeech(`${data.username} says ${data.message}`);
   });
 
+  const isRight = side === 'right';
+
   return (
-    <div className="flex min-h-screen flex-col justify-end gap-2 p-6">
+    <div
+      className={`flex min-h-screen w-full flex-col justify-end gap-2 p-6 ${
+        isRight ? 'items-end' : 'items-start'
+      }`}
+    >
       {lines.map((line) => (
         <div
           key={line.id}
-          className="w-fit max-w-xl rounded-xl bg-black/60 px-4 py-2 text-white shadow"
+          className={`w-fit max-w-xs rounded-xl bg-black/60 px-4 py-2 text-white shadow ${
+            isRight ? 'text-right' : ''
+          }`}
         >
           <span className="font-semibold text-brand-400">{line.username}: </span>
           <span>{line.message}</span>

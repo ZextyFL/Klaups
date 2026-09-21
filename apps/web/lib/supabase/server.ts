@@ -16,16 +16,19 @@ export function createClient() {
         set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options });
-          } catch {
-            // Called from a Server Component render; middleware refreshes the
-            // session instead, so this can be safely ignored.
+          } catch (err) {
+            // Expected when called from a Server Component render (cookies
+            // are read-only there); middleware refreshes the session
+            // instead. From a Server Action or Route Handler this should
+            // never throw — log so a real failure isn't silently eaten.
+            console.error('supabase cookie set() failed', name, err);
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: '', ...options });
-          } catch {
-            // See note above.
+          } catch (err) {
+            console.error('supabase cookie remove() failed', name, err);
           }
         },
       },

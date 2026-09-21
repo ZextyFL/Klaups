@@ -18,6 +18,8 @@ export default async function IntegrationsPage({
     .maybeSingle();
 
   const chatOverlayUrl = `${siteUrl()}/overlay/chat?token=${settings.overlay_token}`;
+  const chatOverlayUrlRight = `${chatOverlayUrl}&side=right`;
+  const viewerOverlayUrl = `${siteUrl()}/overlay/viewers?token=${settings.overlay_token}`;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -37,8 +39,10 @@ export default async function IntegrationsPage({
         </p>
       )}
 
-      <div className="card">
+      <div className="card space-y-4">
         <CopyField label="OBS chat / TTS browser source URL" value={chatOverlayUrl} />
+        <CopyField label="Same, docked on the right side" value={chatOverlayUrlRight} />
+        <CopyField label="Live viewer count overlay" value={viewerOverlayUrl} />
       </div>
 
       <div className="card space-y-3">

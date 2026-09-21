@@ -22,6 +22,8 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
   const [minTts, setMinTts] = useState((settings.min_tts_amount_cents / 100).toString());
   const [songRequestEnabled, setSongRequestEnabled] = useState(settings.song_request_enabled);
   const [songCommand, setSongCommand] = useState(settings.song_request_command);
+  const [ttsVoice, setTtsVoice] = useState(settings.tts_voice ?? 'default');
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,12 +31,23 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
   const connected = settings.tiktok_worker_enabled && !!settings.tiktok_username;
   const status = STATUS_LABEL[connected ? settings.tiktok_status : 'disconnected'];
 
-  // Poll while connected so the badge follows the worker's status updates.
+  // Poll while connected so the badge/viewer count follow the worker's updates.
   useEffect(() => {
     if (!connected) return;
     const id = setInterval(() => router.refresh(), 10_000);
     return () => clearInterval(id);
   }, [connected, router]);
+
+  // Voice list is only available client-side and can arrive asynchronously.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const load = () => setVoices(window.speechSynthesis.getVoices());
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
 
   async function update(patch: Partial<CreatorSettings>) {
     const { error: updateError } = await supabase
@@ -70,11 +83,23 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
     setError(null);
     await update({
       tts_enabled: ttsEnabled,
+      tts_voice: ttsVoice,
       min_tts_amount_cents: Math.round(parseFloat(minTts || '0') * 100),
       song_request_enabled: songRequestEnabled,
       song_request_command: songCommand || '!sr',
     });
     setSaving(false);
+  }
+
+  function previewVoice() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const utterance = new SpeechSynthesisUtterance('This is how your TikTok chat will sound.');
+    if (ttsVoice !== 'default') {
+      const voice = voices.find((v) => v.name === ttsVoice);
+      if (voice) utterance.voice = voice;
+    }
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
   }
 
   return (
@@ -90,6 +115,15 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
             <p className="text-sm text-white/70">
               Connected as <span className="font-semibold text-white">@{settings.tiktok_username}</span>
             </p>
+            {settings.tiktok_status === 'live' && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="h-2 w-2 rounded-full bg-green-400" />
+                <span className="text-2xl font-semibold tabular-nums">
+                  {settings.tiktok_viewer_count.toLocaleString()}
+                </span>
+                <span className="text-white/50">watching right now</span>
+              </div>
+            )}
             {settings.tiktok_status_message && (
               <p className="text-xs text-white/40">{settings.tiktok_status_message}</p>
             )}
@@ -133,6 +167,27 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
         <div>
           <label className="label">Minimum donation amount to trigger TTS on alerts</label>
           <input className="input" type="number" min={0} value={minTts} onChange={(e) => setMinTts(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Voice</label>
+          <div className="flex gap-2">
+            <select className="input" value={ttsVoice} onChange={(e) => setTtsVoice(e.target.value)}>
+              <option value="default">Browser default</option>
+              {voices.map((v) => (
+                <option key={v.name} value={v.name}>
+                  {v.name} ({v.lang})
+                </option>
+              ))}
+            </select>
+            <button className="btn-secondary shrink-0 text-sm" onClick={previewVoice} type="button">
+              Preview
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-white/40">
+            Voices come from the browser running the overlay (your OBS browser source), not this
+            dashboard — pick the one that sounds right here, it&apos;ll carry over as long as OBS has
+            a matching voice installed.
+          </p>
         </div>
       </div>
 

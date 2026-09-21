@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOverlayChannel } from '@/lib/use-overlay-channel';
+import { useSpeechVoice } from '@/lib/use-speech-voice';
 import { formatCents } from '@/lib/format';
 
 interface DonationPayload {
@@ -20,11 +21,18 @@ interface QueueItem extends DonationPayload {
   id: number;
 }
 
-export function AlertPopup({ overlayToken }: { overlayToken: string }) {
+export function AlertPopup({
+  overlayToken,
+  voiceName,
+}: {
+  overlayToken: string;
+  voiceName?: string | null;
+}) {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [current, setCurrent] = useState<QueueItem | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const counter = useRef(0);
+  const voiceRef = useSpeechVoice(voiceName);
 
   useOverlayChannel(overlayToken, ['donation'], (event, payload) => {
     if (event !== 'donation') return;
@@ -47,12 +55,14 @@ export function AlertPopup({ overlayToken }: { overlayToken: string }) {
       }
       if (next.speak && 'speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(next.speak);
+        if (voiceRef.current) utterance.voice = voiceRef.current;
         window.speechSynthesis.speak(utterance);
       }
 
       timeoutRef.current = setTimeout(playNext, next.displaySeconds * 1000);
       return rest;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
