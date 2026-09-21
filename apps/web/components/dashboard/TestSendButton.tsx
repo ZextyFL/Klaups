@@ -8,7 +8,7 @@ export function TestSendButton({
   label = 'Send test',
   className = 'btn-secondary text-sm',
 }: {
-  endpoint: '/api/test/donation' | '/api/test/chat';
+  endpoint: '/api/test/donation' | '/api/test/chat' | '/api/test/tiktok-gift';
   body?: Record<string, unknown>;
   label?: string;
   className?: string;

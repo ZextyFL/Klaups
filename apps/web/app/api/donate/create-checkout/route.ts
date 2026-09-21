@@ -9,7 +9,9 @@ export const runtime = 'nodejs';
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const slug: string | undefined = body?.slug;
-  const amountCents: number | undefined = body?.amountCents;
+  // Number(undefined) is NaN, which Number.isInteger rejects below — this
+  // also keeps the type as `number` so the range checks narrow correctly.
+  const amountCents = Number(body?.amountCents);
   const donorName: string = (body?.donorName ?? 'Anonymous').toString().slice(0, 40);
   const message: string = (body?.message ?? '').toString().slice(0, 200);
 
@@ -36,8 +38,10 @@ export async function POST(request: Request) {
   const feeCents = applicationFeeCents(amountCents);
 
   const session = await stripe.checkout.sessions.create({
+    // Omitting payment_method_types lets Stripe enable every method the
+    // account supports — automatic_payment_methods is a PaymentIntent-only
+    // param and is rejected on Checkout Sessions.
     mode: 'payment',
-    automatic_payment_methods: { enabled: true },
     line_items: [
       {
         quantity: 1,

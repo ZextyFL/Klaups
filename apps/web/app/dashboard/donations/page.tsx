@@ -2,6 +2,13 @@ import { getCurrentCreator } from '@/lib/get-current-creator';
 import { formatCents } from '@/lib/format';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 
+// supabase.rpc() is untyped here, so give the analytics rows a shape.
+interface TopSupporter {
+  donor_name: string;
+  total_cents: number;
+  donation_count: number;
+}
+
 export default async function DonationsPage() {
   const { settings, supabase, user } = await getCurrentCreator();
 
@@ -101,7 +108,7 @@ export default async function DonationsPage() {
           <h2 className="mt-1 font-semibold">Top supporters</h2>
           <p className="mt-1 text-xs text-white/35">All-time paid support</p>
           <div className="mt-4 space-y-2">
-            {(topSupporters ?? []).map((supporter, index) => (
+            {((topSupporters ?? []) as TopSupporter[]).map((supporter, index) => (
               <div key={supporter.donor_name} className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-xs font-semibold text-white/45">
                   {index + 1}
@@ -115,7 +122,7 @@ export default async function DonationsPage() {
                 </span>
               </div>
             ))}
-            {(topSupporters ?? []).length === 0 && (
+            {((topSupporters ?? []) as TopSupporter[]).length === 0 && (
               <p className="rounded-2xl border border-dashed border-white/10 px-3 py-8 text-center text-sm text-white/35">
                 Your top supporters will show here.
               </p>
