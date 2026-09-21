@@ -1,9 +1,14 @@
+import { redirect } from 'next/navigation';
 import { signOut } from '@/app/auth/actions';
 import { getCurrentCreator } from '@/lib/get-current-creator';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { profile, settings } = await getCurrentCreator();
+
+  if (settings.tiktok_verified === false || (settings.tiktok_verified && !settings.tiktok_username)) {
+    redirect('/onboarding/tiktok');
+  }
 
   const live = settings.tiktok_worker_enabled && settings.tiktok_status === 'live';
   const verified = settings.stripe_connect_onboarded && settings.stripe_payouts_enabled;
