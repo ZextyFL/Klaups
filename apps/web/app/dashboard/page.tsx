@@ -3,20 +3,20 @@ import { getCurrentCreator } from '@/lib/get-current-creator';
 import { formatCents } from '@/lib/format';
 import { siteUrl } from '@/lib/site-url';
 import { PageHeader } from '@/components/dashboard/PageHeader';
-import { StatTile } from '@/components/dashboard/StatTile';
 import { Icons } from '@/components/dashboard/icons';
 import { CopyField } from './copy-field';
+import { TestSendButton } from '@/components/dashboard/TestSendButton';
 
 function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
 }
 
 export default async function DashboardOverview() {
   const { settings, balance, supabase, user, profile } = await getCurrentCreator();
 
-  const [{ data: goal }, { data: todayDonations }, { data: recentDonations }, { data: songRequests }] =
+  const [{ data: goal }, { data: todayDonations }, { data: recentDonations }] =
     await Promise.all([
       supabase.rpc('get_or_create_today_goal', { p_profile_id: user.id }),
       supabase
@@ -31,201 +31,233 @@ export default async function DashboardOverview() {
         .eq('profile_id', user.id)
         .eq('status', 'paid')
         .order('created_at', { ascending: false })
-        .limit(6),
-      supabase
-        .from('song_requests')
-        .select('*')
-        .eq('profile_id', user.id)
-        .order('created_at', { ascending: false })
         .limit(5),
     ]);
 
-  const todayCents = (todayDonations ?? []).reduce((sum, d) => sum + d.amount_cents, 0);
+  const todayCents = (todayDonations ?? []).reduce(
+    (sum, donation) => sum + donation.amount_cents,
+    0
+  );
+  const latestDonation = recentDonations?.[0] ?? null;
   const goalPct = goal?.target_amount_cents
     ? Math.min(100, Math.round((goal.current_amount_cents / goal.target_amount_cents) * 100))
     : 0;
 
   const live = settings.tiktok_worker_enabled && settings.tiktok_status === 'live';
-  const connected = settings.tiktok_worker_enabled && !!settings.tiktok_username;
-
-  const nextPayout = balance?.last_payout_at
-    ? new Date(new Date(balance.last_payout_at).getTime() + settings.payout_interval_days * 86_400_000)
-    : null;
-
+  const connected = settings.tiktok_worker_enabled && Boolean(settings.tiktok_username);
+  const verified = settings.stripe_connect_onboarded && settings.stripe_payouts_enabled;
   const donateUrl = `${siteUrl()}/donate/${settings.donation_slug}`;
 
   return (
     <div>
       <PageHeader
-        title={`Hey ${profile.display_name || profile.username}`}
-        description={live ? 'You are live right now.' : 'Here is your stream at a glance.'}
+        title={`Overview`}
+        description={`Welcome back, ${profile.display_name || profile.username}.`}
+        action={
+          <TestSendButton
+            endpoint="/api/test/donation"
+            body={{ amountCents: 500, donorName: 'Klaups Test' }}
+            label="Test alert"
+            className="btn-secondary"
+          />
+        }
       />
 
-      {/* Live status hero */}
-      <div
-        className={`relative mb-6 overflow-hidden rounded-3xl border p-6 ${
-          live
-            ? 'border-green-500/20 bg-[radial-gradient(ellipse_70%_100%_at_0%_50%,rgba(34,197,94,0.14),transparent)]'
-            : 'border-white/10 bg-ink-800/60'
-        }`}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            {connected && settings.tiktok_avatar_url ? (
-              <div
-                className="h-12 w-12 shrink-0 rounded-2xl bg-ink-700 bg-cover bg-center"
-                style={{ backgroundImage: `url(${settings.tiktok_avatar_url})` }}
-              />
-            ) : (
-              <div
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-                  live ? 'bg-green-500/15 text-green-300' : 'bg-white/[0.06] text-white/50'
-                }`}
-              >
-                <Icons.eye className="h-6 w-6" />
+      {!verified && (
+        <Link
+          href="/dashboard/verify"
+          className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/15 bg-amber-500/[0.06] px-5 py-4 transition hover:bg-amber-500/[0.09]"
+        >
+          <div>
+            <p className="font-medium text-amber-200">Verify your account for payouts</p>
+            <p className="mt-1 text-sm text-white/45">
+              Complete Stripe verification so your Klaups balance can be paid to your bank.
+            </p>
+          </div>
+          <span className="text-sm font-medium text-amber-200">Verify account →</span>
+        </Link>
+      )}
+
+      <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
+        <div className="card overflow-hidden rounded-3xl p-0">
+          <div className="relative p-7">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(236,72,153,0.16),transparent_42%)]"
+            />
+            <div className="relative">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm text-white/45">Available balance</p>
+                  <p className="mt-2 text-5xl font-semibold tracking-[-0.04em] tabular-nums">
+                    {formatCents(balance?.available_cents ?? 0, settings.currency)}
+                  </p>
+                  <p className="mt-2 text-sm text-white/35">
+                    {verified ? 'Ready for the next payout run.' : 'Verification required before payout.'}
+                  </p>
+                </div>
+                <Link href="/dashboard/payouts" className="btn-primary">
+                  Payouts <Icons.arrow className="h-4 w-4" />
+                </Link>
               </div>
-            )}
-            <div>
-              <p className="text-sm text-white/50">
-                {connected
-                  ? `${settings.tiktok_display_name || settings.tiktok_username} · @${settings.tiktok_username}`
-                  : 'TikTok not connected'}
-              </p>
-              {live ? (
-                <p className="text-2xl font-semibold tracking-tight">
-                  {settings.tiktok_viewer_count.toLocaleString()}{' '}
-                  <span className="text-base font-normal text-white/50">watching now</span>
-                </p>
-              ) : (
-                <p className="text-2xl font-semibold tracking-tight">
-                  {connected ? 'Waiting for you to go live' : 'Connect to start'}
-                </p>
-              )}
+
+              <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <Link
+                  href="/dashboard/donations"
+                  className="rounded-2xl border border-white/[0.07] bg-black/20 p-4 transition hover:bg-white/[0.04]"
+                >
+                  <p className="text-xs text-white/40">Today</p>
+                  <p className="mt-1 text-xl font-semibold">
+                    {formatCents(todayCents, settings.currency)}
+                  </p>
+                  <p className="mt-1 text-xs text-white/30">
+                    {todayDonations?.length ?? 0} donations
+                  </p>
+                </Link>
+                <Link
+                  href="/dashboard/goals"
+                  className="rounded-2xl border border-white/[0.07] bg-black/20 p-4 transition hover:bg-white/[0.04]"
+                >
+                  <p className="text-xs text-white/40">Daily goal</p>
+                  <p className="mt-1 text-xl font-semibold">{goalPct}%</p>
+                  <p className="mt-1 text-xs text-white/30">
+                    {formatCents(goal?.current_amount_cents ?? 0, settings.currency)}
+                  </p>
+                </Link>
+                <Link
+                  href="/dashboard/alerts"
+                  className="col-span-2 rounded-2xl border border-white/[0.07] bg-black/20 p-4 transition hover:bg-white/[0.04] sm:col-span-1"
+                >
+                  <p className="text-xs text-white/40">Alerts</p>
+                  <p className="mt-1 text-xl font-semibold">Ready</p>
+                  <p className="mt-1 text-xs text-white/30">Test & customize</p>
+                </Link>
+              </div>
             </div>
           </div>
-          <Link href="/dashboard/integrations" className={connected ? 'btn-secondary' : 'btn-accent'}>
+        </div>
+
+        <div className="card rounded-3xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-white/45">Stream status</p>
+              <h2 className="mt-1 text-2xl font-semibold">{live ? 'You are live' : 'Offline'}</h2>
+            </div>
+            <span
+              className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                live ? 'bg-green-400 shadow-[0_0_14px_rgba(74,222,128,0.8)]' : 'bg-white/20'
+              }`}
+            />
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+            <p className="text-sm text-white/45">
+              {connected
+                ? `@${settings.tiktok_username}`
+                : 'TikTok is not connected yet.'}
+            </p>
+            {live && (
+              <p className="mt-1 text-2xl font-semibold">
+                {settings.tiktok_viewer_count.toLocaleString()}
+                <span className="ml-2 text-sm font-normal text-white/40">watching</span>
+              </p>
+            )}
+          </div>
+
+          <Link
+            href="/dashboard/integrations"
+            className={`${connected ? 'btn-secondary' : 'btn-accent'} mt-4 w-full`}
+          >
             {connected ? 'Manage connection' : 'Connect TikTok'}
-            <Icons.arrow className="h-4 w-4" />
           </Link>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile
-          label="Today's donations"
-          value={formatCents(todayCents, settings.currency)}
-          hint={`${(todayDonations ?? []).length} donation${(todayDonations ?? []).length === 1 ? '' : 's'}`}
-          accent
-        />
-        <StatTile
-          label="Daily goal"
-          value={`${goalPct}%`}
-          hint={`${formatCents(goal?.current_amount_cents ?? 0, settings.currency)} of ${formatCents(
-            goal?.target_amount_cents ?? 0,
-            settings.currency
-          )}`}
-          href="/dashboard/goals"
-        />
-        <StatTile
-          label="Available balance"
-          value={formatCents(balance?.available_cents ?? 0, settings.currency)}
-          hint={
-            settings.stripe_connect_onboarded
-              ? nextPayout
-                ? `Next payout ${nextPayout.toLocaleDateString()}`
-                : 'Paid out on the next run'
-              : 'Set up payouts to get paid'
-          }
-          href="/dashboard/payouts"
-        />
-        <StatTile
-          label="Payout cycle"
-          value={`${settings.payout_interval_days}d`}
-          hint="Automatic via Stripe"
-          href="/dashboard/payouts"
-        />
-      </div>
-
-      {/* Goal bar */}
-      <div className="card mt-4 rounded-2xl">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-medium">Today&apos;s goal</span>
-          <span className="text-white/50">
-            {formatCents(goal?.current_amount_cents ?? 0, settings.currency)} /{' '}
-            {formatCents(goal?.target_amount_cents ?? 0, settings.currency)}
-          </span>
-        </div>
-        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-brand-500 to-fuchsia-400 transition-all duration-700"
-            style={{ width: `${goalPct}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Quick links */}
-      <div className="card mt-6 rounded-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-semibold">Your donation link</h2>
-          <Link href="/dashboard/widgets" className="btn-ghost text-sm">
-            All overlays <Icons.arrow className="h-4 w-4" />
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="card rounded-3xl">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-white/45">Most recent donation</p>
+              <h2 className="mt-1 text-xl font-semibold">
+                {latestDonation ? latestDonation.donor_name : 'No donations yet'}
+              </h2>
+            </div>
+            {latestDonation && (
+              <p className="text-xl font-semibold text-brand-300">
+                {formatCents(latestDonation.amount_cents, latestDonation.currency)}
+              </p>
+            )}
+          </div>
+          <p className="mt-4 min-h-6 text-sm text-white/45">
+            {latestDonation?.message || 'Your latest donor message will appear here.'}
+          </p>
+          <Link href="/dashboard/donations" className="btn-ghost mt-4 text-sm">
+            View all donations <Icons.arrow className="h-4 w-4" />
           </Link>
         </div>
-        <CopyField label="Share this anywhere" value={donateUrl} />
+
+        <div className="card rounded-3xl">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-white/45">Daily goal</p>
+              <h2 className="mt-1 text-xl font-semibold">
+                {formatCents(goal?.current_amount_cents ?? 0, settings.currency)}
+                <span className="font-normal text-white/35">
+                  {' '}of {formatCents(goal?.target_amount_cents ?? 0, settings.currency)}
+                </span>
+              </h2>
+            </div>
+            <span className="text-sm font-semibold text-brand-300">{goalPct}%</span>
+          </div>
+          <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/[0.07]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-fuchsia-400 transition-all duration-700"
+              style={{ width: `${goalPct}%` }}
+            />
+          </div>
+          <Link href="/dashboard/goals" className="btn-ghost mt-4 text-sm">
+            Edit goal <Icons.arrow className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
 
-      {/* Activity */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="card rounded-2xl lg:col-span-3">
-          <h2 className="font-semibold">Recent donations</h2>
-          <div className="mt-3 divide-y divide-white/[0.06]">
-            {(recentDonations ?? []).length === 0 && (
-              <p className="py-6 text-center text-sm text-white/40">
-                No donations yet — share your link to get the first one.
-              </p>
-            )}
-            {(recentDonations ?? []).map((d) => (
-              <div key={d.id} className="flex items-start justify-between gap-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{d.donor_name}</p>
-                  {d.message && <p className="truncate text-sm text-white/50">{d.message}</p>}
-                  <p className="mt-0.5 text-xs text-white/35">{new Date(d.created_at).toLocaleString()}</p>
-                </div>
-                <p className="shrink-0 font-semibold text-brand-400">{formatCents(d.amount_cents, d.currency)}</p>
-              </div>
-            ))}
+      <div className="card mt-4 rounded-3xl">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Your donation link</h2>
+            <p className="mt-1 text-sm text-white/40">
+              Share it in your TikTok bio, chat, Discord or stream description.
+            </p>
           </div>
+          <Link href="/dashboard/donation-link" className="btn-ghost text-sm">
+            Customize page <Icons.arrow className="h-4 w-4" />
+          </Link>
         </div>
+        <div className="mt-4">
+          <CopyField label="Public donation page" value={donateUrl} />
+        </div>
+      </div>
 
-        <div className="card rounded-2xl lg:col-span-2">
-          <div className="flex items-center gap-2">
-            <Icons.music className="h-4 w-4 text-white/50" />
-            <h2 className="font-semibold">Song requests</h2>
-          </div>
-          <div className="mt-3 divide-y divide-white/[0.06]">
-            {(songRequests ?? []).length === 0 && (
-              <p className="py-6 text-center text-sm text-white/40">
-                {settings.song_request_enabled
-                  ? 'Nothing queued yet.'
-                  : 'Turn on song requests under Connections & TTS.'}
-              </p>
-            )}
-            {(songRequests ?? []).map((s) => (
-              <div key={s.id} className="py-3">
-                <p className="truncate text-sm font-medium">
-                  {s.track_name ? `${s.track_name} — ${s.artist_name}` : s.query}
-                </p>
-                <p className="text-xs text-white/40">
-                  {s.requested_by} ·{' '}
-                  <span className={s.status === 'queued' ? 'text-green-400' : 'text-yellow-400'}>
-                    {s.status.replace('_', ' ')}
-                  </span>
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ['/dashboard/alerts', 'Alerts', 'Customize & test', 'bell'],
+          ['/dashboard/soundboard', 'Soundboard', 'Sounds & hotkeys', 'music'],
+          ['/dashboard/widgets', 'Widgets', 'OBS browser sources', 'grid'],
+          ['/dashboard/settings', 'Settings', 'Account & platform', 'settings'],
+        ].map(([href, title, description, icon]) => {
+          const Icon = Icons[icon as keyof typeof Icons];
+          return (
+            <Link
+              key={href}
+              href={href}
+              className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 transition hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.05]"
+            >
+              <Icon className="h-5 w-5 text-white/45" />
+              <p className="mt-3 font-medium">{title}</p>
+              <p className="mt-1 text-xs text-white/35">{description}</p>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
