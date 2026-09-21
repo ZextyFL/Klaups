@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -31,10 +32,7 @@ async function provisionCreator(userId: string, email: string | undefined, metaU
   await admin.from('balances').upsert({ profile_id: userId }, { onConflict: 'profile_id', ignoreDuplicates: true });
 }
 
-// Loads the signed-in creator's profile + settings + balance. Redirects to
-// /login if there's no session (middleware already guards /dashboard, this
-// is the belt-and-suspenders check for direct server-component use).
-export async function getCurrentCreator() {
+async function loadCurrentCreator() {
   const supabase = createClient();
   const {
     data: { user },
@@ -70,3 +68,7 @@ export async function getCurrentCreator() {
     balance: balance as Balance | null,
   };
 }
+
+// Dashboard layouts and pages both need this data. React cache deduplicates
+// the auth/profile/settings/balance fetches within a single server render.
+export const getCurrentCreator = cache(loadCurrentCreator);
