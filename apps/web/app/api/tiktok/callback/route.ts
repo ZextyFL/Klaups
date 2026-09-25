@@ -52,8 +52,10 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${siteUrl()}/login`);
   }
 
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
+  // Trimmed for the same reason as the authorize step: a stray newline on
+  // either value makes TikTok fail the token exchange.
+  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
+  const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
   if (!clientKey || !clientSecret) {
     return NextResponse.redirect(
       `${siteUrl()}/onboarding/tiktok?error=${encodeURIComponent('TikTok Login Kit credentials are missing.')}`

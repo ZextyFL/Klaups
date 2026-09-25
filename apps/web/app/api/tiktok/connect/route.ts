@@ -22,7 +22,10 @@ export async function GET() {
     return NextResponse.redirect(`${siteUrl()}/login?error=Google+sign+in+required`);
   }
 
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
+  // Netlify's env editor keeps trailing whitespace/newlines on pasted values,
+  // and TikTok rejects the whole authorize request with a bare "client_key"
+  // error when the key has any, so normalise before building the URL.
+  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
   if (!clientKey) {
     return NextResponse.redirect(
       `${siteUrl()}/onboarding/tiktok?error=${encodeURIComponent('TikTok Login Kit is not configured yet.')}`
