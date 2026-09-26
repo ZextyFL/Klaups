@@ -6,7 +6,8 @@ import { Sidebar } from '@/components/dashboard/Sidebar';
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { profile, settings } = await getCurrentCreator();
 
-  if (settings.tiktok_verified === false || (settings.tiktok_verified && !settings.tiktok_username)) {
+  // Login Kit is optional; a linked username is what every creator tool needs.
+  if (!settings.tiktok_username) {
     redirect('/onboarding/tiktok');
   }
 

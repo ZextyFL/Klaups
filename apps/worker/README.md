@@ -5,9 +5,10 @@ TikTok LIVE rooms with `tiktok-live-connector`, forwards chat/viewer events,
 records completed gifts and broadcasts gift-specific reactions into each
 creator's private Supabase Realtime overlay topic.
 
-Official TikTok Login Kit in `apps/web` verifies creator ownership. The LIVE
-worker is separate because Login Kit does not provide the consumer LIVE event
-stream used for chat/gift reactions.
+Creators link TikTok by username in `apps/web` (Login Kit is optional and only
+adds cryptographic ownership proof). Either way the LIVE worker is separate,
+because Login Kit does not provide the consumer LIVE event stream used for
+chat/gift reactions.
 
 ## Requirements
 
@@ -27,6 +28,13 @@ stream used for chat/gift reactions.
 - streak gifts -> waits for `repeatEnd` so one streak creates one reaction
 - Spotify song-request commands
 - automatic reconnects for creators with `tiktok_worker_enabled = true`
+
+Each creator gets a supervisor that owns its own retry timer and a stale
+watchdog. Three outcomes are kept strictly apart: connected, confirmed-offline
+(slow poll, waiting for the next LIVE) and could-not-check (fast burst then
+backoff). A creator is never told their stream is offline because *our* check
+failed. Any event — chat, gift, like, or the periodic viewer-count push —
+counts as proof of life, so a silent LIVE is not mistaken for a dead socket.
 
 Gift configuration is cached briefly per creator so a busy LIVE does not query
 Supabase for every gift. Dashboard changes are picked up after the cache

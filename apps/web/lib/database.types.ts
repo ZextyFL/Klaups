@@ -34,6 +34,8 @@ export interface CreatorSettings {
   tiktok_last_seen_at: string | null;
   tiktok_verified: boolean;
   tiktok_verified_at: string | null;
+  tiktok_live_checked_at: string | null;
+  tiktok_live_title: string | null;
   stripe_connect_account_id: string | null;
   stripe_connect_onboarded: boolean;
   stripe_payouts_enabled: boolean;

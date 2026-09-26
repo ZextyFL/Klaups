@@ -15,7 +15,7 @@ export default async function TikTokOnboardingPage({
     .eq('profile_id', user.id)
     .maybeSingle();
 
-  const complete = Boolean(settings.tiktok_verified && settings.tiktok_username);
+  const complete = Boolean(settings.tiktok_username);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-black px-5 py-10 text-white">
@@ -36,15 +36,16 @@ export default async function TikTokOnboardingPage({
               Connect the TikTok you actually stream on.
             </h1>
             <p className="mt-4 text-sm leading-7 text-white/50">
-              Google secures your Klaups login. TikTok Login Kit separately proves ownership of the
-              TikTok account, so gift alerts, LIVE chat and creator tools stay tied to the right streamer.
+              Google secures your Klaups login. Tell us which TikTok you stream on and we&apos;ll
+              show you the profile to confirm — then gift alerts, LIVE chat and every creator tool
+              point at the right account.
             </p>
 
             <div className="mt-7 space-y-3">
               {[
                 ['1', 'Google account', 'Your Klaups identity and secure login.'],
-                ['2', 'TikTok verification', 'Proves which TikTok creator account belongs to you.'],
-                ['3', 'Go live', 'Klaups listens for gifts, chat, viewers and commands.'],
+                ['2', 'Your TikTok handle', 'Confirm the profile card we show you.'],
+                ['3', 'Go live', 'Press Connect TikTok LIVE and Klaups joins your room.'],
               ].map(([number, title, text]) => (
                 <div key={number} className="flex gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-xs font-semibold text-brand-300">

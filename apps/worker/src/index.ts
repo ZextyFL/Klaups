@@ -3,14 +3,38 @@ import { ControlEvent, TikTokLiveConnection, WebcastEvent } from 'tiktok-live-co
 import { fetchActiveCreators, supabase, type ActiveCreator } from './supabase.js';
 import { send } from './broadcast.js';
 import { queueSongRequest } from './spotify.js';
+import {
+  classifyAttempt,
+  nextRetryDelayMs,
+  nextWaitingLiveDelayMs,
+  WATCHDOG_TIMEOUT_MS,
+} from './schedule.js';
 
 const POLL_INTERVAL_MS = 30_000;
 const GIFT_CONFIG_TTL_MS = 10_000;
-
-const connections = new Map<string, TikTokLiveConnection>();
-const creatorByProfile = new Map<string, ActiveCreator>();
-const lastViewerCountWrite = new Map<string, number>();
 const VIEWER_COUNT_THROTTLE_MS = 5_000;
+
+/**
+ * Per-creator connection supervisor.
+ *
+ * A creator who asked Klaups to listen keeps a supervisor until they ask it to
+ * stop. The supervisor owns the retry timer and the stale watchdog, so a room
+ * that ends, a socket that dies silently, and a creator who simply isn't live
+ * yet all funnel into the same place instead of racing each other.
+ */
+type Supervisor = {
+  creator: ActiveCreator;
+  conn: TikTokLiveConnection | null;
+  techState: 'connecting' | 'connected' | 'waiting_live';
+  consecutiveFailures: number;
+  consecutiveWaits: number;
+  connectedOnce: boolean;
+  retryTimer: NodeJS.Timeout | null;
+  watchdog: NodeJS.Timeout | null;
+  lastViewerCountWrite: number;
+};
+
+const supervisors = new Map<string, Supervisor>();
 
 type GiftAlert = {
   gift_id: string;
@@ -69,12 +93,30 @@ async function getGiftConfig(profileId: string): Promise<GiftConfigCache> {
   return value;
 }
 
-async function startConnection(creator: ActiveCreator) {
+/**
+ * Builds a fresh connection and wires the event handlers.
+ *
+ * Every handler re-arms the stale watchdog first: a LIVE with no chat is not a
+ * dead LIVE, so viewer-count pushes count as proof of life just as much as
+ * messages do.
+ */
+function setupConnection(sup: Supervisor) {
+  const creator = sup.creator;
   const connection = new TikTokLiveConnection(creator.tiktok_username, {
     fetchRoomInfoOnConnect: true,
   });
+  sup.conn = connection;
+
+  // Guards against a replaced connection still firing events into the app.
+  const isStale = () => supervisors.get(creator.profile_id)?.conn !== connection;
+  const alive = () => {
+    if (isStale()) return false;
+    armWatchdog(sup);
+    return true;
+  };
 
   connection.on(WebcastEvent.CHAT, async (data) => {
+    if (!alive()) return;
     const username = displayName(data.user);
     const message = data.content ?? '';
     if (!message) return;
@@ -91,6 +133,7 @@ async function startConnection(creator: ActiveCreator) {
   });
 
   connection.on(WebcastEvent.GIFT, async (data) => {
+    if (!alive()) return;
     // tiktok-live-connector 2.5 has moved some gift metadata between releases.
     // Read the currently common fields defensively so the worker remains
     // compatible while preserving TypeScript safety at the boundary.
@@ -190,14 +233,16 @@ async function startConnection(creator: ActiveCreator) {
   });
 
   connection.on(WebcastEvent.ROOM_USER, async (data) => {
+    // Re-arms the watchdog even when throttled below: TikTok pushes this
+    // periodically in a silent room, making it our most reliable health signal.
+    if (!alive()) return;
     const room = data as unknown as { viewerCount?: number; total?: number };
     const count = Number(room.viewerCount ?? room.total ?? 0);
     if (!Number.isFinite(count)) return;
 
     const now = Date.now();
-    const last = lastViewerCountWrite.get(creator.profile_id) ?? 0;
-    if (now - last < VIEWER_COUNT_THROTTLE_MS) return;
-    lastViewerCountWrite.set(creator.profile_id, now);
+    if (now - sup.lastViewerCountWrite < VIEWER_COUNT_THROTTLE_MS) return;
+    sup.lastViewerCountWrite = now;
 
     await supabase
       .from('creator_settings')
@@ -207,41 +252,131 @@ async function startConnection(creator: ActiveCreator) {
   });
 
   connection.on(ControlEvent.CONNECTED, (state) => {
+    if (isStale()) return;
     console.log(`[${creator.tiktok_username}] connected, roomId=${state.roomId}`);
-    void setStatus(creator.profile_id, 'live', `Connected to room ${state.roomId}`);
   });
 
   connection.on(ControlEvent.DISCONNECTED, ({ code, reason }) => {
+    if (isStale()) return;
     console.log(`[${creator.tiktok_username}] disconnected (${code}) ${reason ?? ''}`);
-    connections.delete(creator.profile_id);
-    lastViewerCountWrite.delete(creator.profile_id);
-    giftConfigCache.delete(creator.profile_id);
-    void setStatus(creator.profile_id, 'offline', reason || 'Stream ended');
-    void supabase
-      .from('creator_settings')
-      .update({ tiktok_viewer_count: 0 })
-      .eq('profile_id', creator.profile_id);
+    triggerRecovery(sup, reason || 'Stream ended');
   });
 
   connection.on(ControlEvent.ERROR, ({ info, exception }) => {
+    if (isStale()) return;
+    // A single error frame is not proof the room is gone: DISCONNECTED and the
+    // stale watchdog cover real death. Log it and let those decide.
     console.error(`[${creator.tiktok_username}] error`, info, exception?.message);
   });
 
-  await setStatus(creator.profile_id, 'connecting', null);
+  return connection;
+}
+
+function armWatchdog(sup: Supervisor) {
+  if (sup.watchdog) clearTimeout(sup.watchdog);
+  sup.watchdog = setTimeout(() => {
+    if (!supervisors.has(sup.creator.profile_id)) return;
+    console.log(
+      `[${sup.creator.tiktok_username}] no events for ${WATCHDOG_TIMEOUT_MS}ms; recovering`
+    );
+    triggerRecovery(sup, 'Connection went silent');
+  }, WATCHDOG_TIMEOUT_MS);
+}
+
+function teardownConn(sup: Supervisor) {
+  if (sup.watchdog) { clearTimeout(sup.watchdog); sup.watchdog = null; }
+  const conn = sup.conn;
+  sup.conn = null;
+  if (!conn) return;
+  conn.removeAllListeners();
+  conn.disconnect().catch(() => {});
+}
+
+function teardownSupervisor(sup: Supervisor) {
+  if (sup.retryTimer) { clearTimeout(sup.retryTimer); sup.retryTimer = null; }
+  teardownConn(sup);
+}
+
+/** A live room we had, and lost. Only meaningful from the connected state. */
+function triggerRecovery(sup: Supervisor, reason: string) {
+  if (sup.techState !== 'connected') return;
+  teardownConn(sup);
+  sup.techState = 'connecting';
+  void setStatus(sup.creator.profile_id, 'connecting', reason);
+  void supabase
+    .from('creator_settings')
+    .update({ tiktok_viewer_count: 0 })
+    .eq('profile_id', sup.creator.profile_id);
+  scheduleAttempt(sup, 1_000);
+}
+
+function scheduleAttempt(sup: Supervisor, delayMs: number) {
+  if (sup.retryTimer) clearTimeout(sup.retryTimer);
+  sup.retryTimer = setTimeout(() => {
+    runAttempt(sup).catch((err) => console.error('attempt failed', err));
+  }, delayMs);
+}
+
+/**
+ * One connection attempt, plus the state transition its result implies.
+ *
+ * The three outcomes are kept strictly apart. Telling a creator their stream is
+ * offline when we simply failed to check is the single most confusing thing
+ * this worker could do, so `unknown` never surfaces as "offline".
+ */
+async function runAttempt(sup: Supervisor) {
+  if (!supervisors.has(sup.creator.profile_id)) return;
+
+  const connection = setupConnection(sup);
 
   try {
     await connection.connect();
-    connections.set(creator.profile_id, connection);
   } catch (err) {
-    const message = (err as Error).message ?? 'Could not connect';
-    console.log(`[${creator.tiktok_username}] connect failed: ${message}`);
-    const isOffline = /offline|not live|LIVE has ended/i.test(message);
-    await setStatus(
-      creator.profile_id,
-      isOffline ? 'offline' : 'error',
-      isOffline ? 'Not live right now — will connect automatically when you go live' : message
+    if (supervisors.get(sup.creator.profile_id)?.conn !== connection) return;
+    const outcome = classifyAttempt(err);
+    teardownConn(sup);
+
+    if (outcome.kind === 'not_live') {
+      const delay = nextWaitingLiveDelayMs(sup.consecutiveWaits);
+      sup.consecutiveWaits += 1;
+      sup.consecutiveFailures = 0;
+      if (sup.techState !== 'waiting_live') {
+        sup.techState = 'waiting_live';
+        await setStatus(
+          sup.creator.profile_id,
+          'offline',
+          'Not live right now — Klaups will connect the moment you go live'
+        );
+      }
+      scheduleAttempt(sup, delay);
+      return;
+    }
+
+    sup.consecutiveWaits = 0;
+    sup.consecutiveFailures += 1;
+    const delay = nextRetryDelayMs(sup.consecutiveFailures);
+    console.log(
+      `[${sup.creator.tiktok_username}] attempt failed (${outcome.message}); retrying in ${delay}ms`
     );
+    // Stay on "connecting" until we have actually connected once. A creator
+    // who just pressed the button should not watch the state flap.
+    await setStatus(
+      sup.creator.profile_id,
+      'connecting',
+      sup.connectedOnce ? 'Reconnecting to your LIVE…' : 'Joining your LIVE…'
+    );
+    scheduleAttempt(sup, delay);
+    return;
   }
+
+  if (supervisors.get(sup.creator.profile_id)?.conn !== connection) return;
+
+  sup.techState = 'connected';
+  sup.connectedOnce = true;
+  sup.consecutiveFailures = 0;
+  sup.consecutiveWaits = 0;
+  armWatchdog(sup);
+  await setStatus(sup.creator.profile_id, 'live', null);
 }
 
 async function setStatus(
@@ -294,25 +429,50 @@ async function handleSongRequest(creator: ActiveCreator, requestedBy: string, qu
   }
 }
 
+/**
+ * Start supervisors for creators who want Klaups listening, stop the rest.
+ *
+ * This only tracks *intent*. Retries and recovery are the supervisor's job, so
+ * a creator waiting for their next LIVE is not re-attempted on this interval.
+ */
 async function reconcile() {
   const activeCreators = await fetchActiveCreators();
   const activeProfileIds = new Set(activeCreators.map((creator) => creator.profile_id));
 
-  for (const [profileId, connection] of connections) {
+  for (const [profileId, sup] of supervisors) {
     if (!activeProfileIds.has(profileId)) {
-      connection.disconnect().catch(() => {});
-      connections.delete(profileId);
-      creatorByProfile.delete(profileId);
+      supervisors.delete(profileId);
+      teardownSupervisor(sup);
       giftConfigCache.delete(profileId);
       await setStatus(profileId, 'disconnected', null);
+      await supabase
+        .from('creator_settings')
+        .update({ tiktok_viewer_count: 0 })
+        .eq('profile_id', profileId);
     }
   }
 
   for (const creator of activeCreators) {
-    creatorByProfile.set(creator.profile_id, creator);
-    if (!connections.has(creator.profile_id)) {
-      await startConnection(creator);
+    const existing = supervisors.get(creator.profile_id);
+    if (existing) {
+      existing.creator = creator;
+      continue;
     }
+
+    const sup: Supervisor = {
+      creator,
+      conn: null,
+      techState: 'connecting',
+      consecutiveFailures: 0,
+      consecutiveWaits: 0,
+      connectedOnce: false,
+      retryTimer: null,
+      watchdog: null,
+      lastViewerCountWrite: 0,
+    };
+    supervisors.set(creator.profile_id, sup);
+    await setStatus(creator.profile_id, 'connecting', 'Joining your LIVE…');
+    await runAttempt(sup);
   }
 }
 
@@ -329,9 +489,7 @@ main().catch((err) => {
   process.exit(1);
 });
 
-process.on('SIGTERM', async () => {
-  for (const connection of connections.values()) {
-    await connection.disconnect().catch(() => {});
-  }
+process.on('SIGTERM', () => {
+  for (const sup of supervisors.values()) teardownSupervisor(sup);
   process.exit(0);
 });
