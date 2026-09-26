@@ -1,0 +1,21 @@
+# Render Blueprint. Import at dashboard.render.com → New → Blueprint, point it
+# at this repo; set rootDir so the worker builds from apps/worker.
+services:
+  - type: worker
+    name: klaups-tiktok-worker
+    runtime: docker
+    rootDir: apps/worker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: EULER_API_KEY
+        sync: false

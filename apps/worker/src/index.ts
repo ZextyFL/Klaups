@@ -5,14 +5,29 @@ import { send } from './broadcast.js';
 import { queueSongRequest } from './spotify.js';
 import {
   classifyAttempt,
+  CONNECT_TIMEOUT_MS,
   nextRetryDelayMs,
   nextWaitingLiveDelayMs,
   WATCHDOG_TIMEOUT_MS,
 } from './schedule.js';
+import { startHealthServer } from './health.js';
 
 const POLL_INTERVAL_MS = 30_000;
 const GIFT_CONFIG_TTL_MS = 10_000;
 const VIEWER_COUNT_THROTTLE_MS = 5_000;
+
+// Likes arrive as a firehose (one event per tap batch). Coalesce them per
+// creator so the overlay gets a readable "+37 likes" instead of 37 pops.
+const LIKE_FLUSH_MS = 2_000;
+
+// Streak gifts normally signal their end via repeatEnd. If TikTok stops
+// sending that flag (it has before), fall back to "no tick for this combo in
+// N ms" so an alert still fires once instead of never or per-tick.
+const GIFT_COMBO_FALLBACK_MS = 1_500;
+
+// Optional Euler Stream key. Without one the library uses the free signing
+// tier, which is fine for a handful of rooms but gets throttled at scale.
+const SIGN_API_KEY = process.env.EULER_API_KEY?.trim() || undefined;
 
 /**
  * Per-creator connection supervisor.
@@ -32,7 +47,21 @@ type Supervisor = {
   retryTimer: NodeJS.Timeout | null;
   watchdog: NodeJS.Timeout | null;
   lastViewerCountWrite: number;
+  pendingLikes: number;
+  likeFlushTimer: NodeJS.Timeout | null;
+  giftComboTimers: Map<string, NodeJS.Timeout>;
 };
+
+type SocialKind = 'like' | 'follow' | 'share' | 'join';
+
+function userOf(data: unknown) {
+  const user = (data as { user?: { nickname?: string; uniqueId?: string; displayId?: string } })?.user;
+  return { name: user?.nickname || user?.uniqueId || 'Someone', uniqueId: user?.uniqueId ?? user?.displayId ?? null };
+}
+
+async function emitSocial(sup: Supervisor, kind: SocialKind, name: string, uniqueId: string | null, count = 1) {
+  await send(sup.creator.overlay_token, 'social', { kind, username: name, uniqueId, count });
+}
 
 const supervisors = new Map<string, Supervisor>();
 
@@ -93,6 +122,99 @@ async function getGiftConfig(profileId: string): Promise<GiftConfigCache> {
   return value;
 }
 
+type GiftRaw = {
+  giftId?: string | number;
+  giftType?: number;
+  giftName?: string;
+  giftPictureUrl?: string;
+  diamondCount?: number;
+  repeatCount?: number;
+  repeatEnd?: boolean;
+  user?: { nickname?: string; uniqueId?: string };
+  giftDetails?: {
+    giftId?: string | number;
+    giftType?: number;
+    giftName?: string;
+    giftPictureUrl?: string;
+    diamondCount?: number;
+  };
+  gift?: {
+    id?: string | number;
+    giftId?: string | number;
+    type?: number;
+    name?: string;
+    pictureUrl?: string;
+    diamondCount?: number;
+    image?: string | { urlList?: string[] };
+  };
+};
+
+/** One finished gift (streak already resolved): record it and alert the overlay. */
+async function fireGift(sup: Supervisor, raw: GiftRaw) {
+  const creator = sup.creator;
+  const giftId = String(
+    raw.giftId ?? raw.giftDetails?.giftId ?? raw.gift?.giftId ?? raw.gift?.id ?? ''
+  );
+  if (!giftId) return;
+  const username = displayName(raw.user);
+  const uniqueId = raw.user?.uniqueId ?? null;
+  const giftName = raw.giftDetails?.giftName ?? raw.gift?.name ?? raw.giftName ?? 'Gift';
+  const repeatCount = Math.max(1, Number(raw.repeatCount ?? 1));
+  const diamondCountRaw =
+    raw.giftDetails?.diamondCount ?? raw.gift?.diamondCount ?? raw.diamondCount;
+  const diamondCount = Number.isFinite(Number(diamondCountRaw))
+    ? Number(diamondCountRaw)
+    : null;
+
+  const rawImage = raw.gift?.image;
+  const giftImageUrl =
+    raw.giftDetails?.giftPictureUrl ??
+    raw.gift?.pictureUrl ??
+    (typeof rawImage === 'string' ? rawImage : rawImage?.urlList?.[0]) ??
+    raw.giftPictureUrl ??
+    null;
+
+  await supabase.rpc('record_tiktok_gift', {
+    p_profile_id: creator.profile_id,
+    p_gift_id: giftId,
+    p_gift_name: giftName,
+    p_image_url: giftImageUrl,
+    p_diamond_count: diamondCount,
+    p_sender_name: username,
+    p_sender_unique_id: uniqueId,
+    p_repeat_count: repeatCount,
+  });
+
+  await send(creator.overlay_token, 'chat_message', {
+    username,
+    message: `sent ${giftName} x${repeatCount}!`,
+    type: 'gift',
+  });
+
+  const config = await getGiftConfig(creator.profile_id);
+  if (!config.alertsEnabled) return;
+
+  const alert = config.alerts.get(giftId);
+  if (alert && !alert.enabled) return;
+
+  await send(creator.overlay_token, 'tiktok_gift', {
+    giftId,
+    giftName,
+    giftImageUrl,
+    diamondCount,
+    repeatCount,
+    senderName: username,
+    senderUniqueId: uniqueId,
+    soundUrl: alert?.sound_url ?? null,
+    volume: alert?.volume ?? config.defaultVolume,
+    displaySeconds: alert?.display_seconds ?? config.defaultDisplaySeconds,
+    showVisual: alert?.show_visual ?? config.showGiftVisuals,
+    showSender: alert?.show_sender ?? true,
+    showGiftImage: alert?.show_gift_image ?? true,
+    messageTemplate: alert?.message_template ?? '{name} sent {gift} x{count}!',
+  });
+}
+
 /**
  * Builds a fresh connection and wires the event handlers.
  *
@@ -104,6 +226,7 @@ function setupConnection(sup: Supervisor) {
   const creator = sup.creator;
   const connection = new TikTokLiveConnection(creator.tiktok_username, {
     fetchRoomInfoOnConnect: true,
+    signApiKey: SIGN_API_KEY,
   });
   sup.conn = connection;
 
@@ -137,99 +260,67 @@ function setupConnection(sup: Supervisor) {
     // tiktok-live-connector 2.5 has moved some gift metadata between releases.
     // Read the currently common fields defensively so the worker remains
     // compatible while preserving TypeScript safety at the boundary.
-    const raw = data as unknown as {
-      giftId?: string | number;
-      giftType?: number;
-      giftName?: string;
-      giftPictureUrl?: string;
-      diamondCount?: number;
-      repeatCount?: number;
-      repeatEnd?: boolean;
-      user?: { nickname?: string; uniqueId?: string };
-      giftDetails?: {
-        giftId?: string | number;
-        giftType?: number;
-        giftName?: string;
-        giftPictureUrl?: string;
-        diamondCount?: number;
-      };
-      gift?: {
-        id?: string | number;
-        giftId?: string | number;
-        type?: number;
-        name?: string;
-        pictureUrl?: string;
-        diamondCount?: number;
-        image?: string | { urlList?: string[] };
-      };
-    };
-
-    const giftType = raw.giftDetails?.giftType ?? raw.gift?.type ?? raw.giftType;
-    const isStreakInProgress = giftType === 1 && !raw.repeatEnd;
-    if (isStreakInProgress) return;
+    const raw = data as unknown as GiftRaw;
 
     const giftId = String(
       raw.giftId ?? raw.giftDetails?.giftId ?? raw.gift?.giftId ?? raw.gift?.id ?? ''
     );
     if (!giftId) return;
 
-    const username = displayName(raw.user);
-    const uniqueId = raw.user?.uniqueId ?? null;
-    const giftName = raw.giftDetails?.giftName ?? raw.gift?.name ?? raw.giftName ?? 'Gift';
-    const repeatCount = Math.max(1, Number(raw.repeatCount ?? 1));
-    const diamondCountRaw =
-      raw.giftDetails?.diamondCount ?? raw.gift?.diamondCount ?? raw.diamondCount;
-    const diamondCount = Number.isFinite(Number(diamondCountRaw))
-      ? Number(diamondCountRaw)
-      : null;
+    const giftType = raw.giftDetails?.giftType ?? raw.gift?.type ?? raw.giftType;
+    const comboKey = `${giftId}:${raw.user?.uniqueId ?? ''}`;
+    const isStreakInProgress = giftType === 1 && !raw.repeatEnd;
+    if (isStreakInProgress) {
+      // Re-arm the fallback: if repeatEnd never comes, fire with the last
+      // repeatCount we saw once the ticks stop.
+      const pending = sup.giftComboTimers.get(comboKey);
+      if (pending) clearTimeout(pending);
+      sup.giftComboTimers.set(comboKey, setTimeout(() => {
+        sup.giftComboTimers.delete(comboKey);
+        void fireGift(sup, raw);
+      }, GIFT_COMBO_FALLBACK_MS));
+      return;
+    }
+    const pending = sup.giftComboTimers.get(comboKey);
+    if (pending) { clearTimeout(pending); sup.giftComboTimers.delete(comboKey); }
+    await fireGift(sup, raw);
+  });
 
-    const rawImage = raw.gift?.image;
-    const giftImageUrl =
-      raw.giftDetails?.giftPictureUrl ??
-      raw.gift?.pictureUrl ??
-      (typeof rawImage === 'string' ? rawImage : rawImage?.urlList?.[0]) ??
-      raw.giftPictureUrl ??
-      null;
+  connection.on(WebcastEvent.LIKE, (data) => {
+    if (!alive()) return;
+    const raw = data as unknown as { likeCount?: number; count?: number };
+    sup.pendingLikes += Math.max(1, Number(raw.likeCount ?? raw.count ?? 1));
+    if (sup.likeFlushTimer) return;
+    sup.likeFlushTimer = setTimeout(() => {
+      sup.likeFlushTimer = null;
+      const total = sup.pendingLikes;
+      sup.pendingLikes = 0;
+      if (total > 0) void emitSocial(sup, 'like', 'Viewers', null, total);
+    }, LIKE_FLUSH_MS);
+  });
 
-    await supabase.rpc('record_tiktok_gift', {
-      p_profile_id: creator.profile_id,
-      p_gift_id: giftId,
-      p_gift_name: giftName,
-      p_image_url: giftImageUrl,
-      p_diamond_count: diamondCount,
-      p_sender_name: username,
-      p_sender_unique_id: uniqueId,
-      p_repeat_count: repeatCount,
-    });
+  connection.on(WebcastEvent.FOLLOW, (data) => {
+    if (!alive()) return;
+    const { name, uniqueId } = userOf(data);
+    void emitSocial(sup, 'follow', name, uniqueId);
+  });
 
-    await send(creator.overlay_token, 'chat_message', {
-      username,
-      message: `sent ${giftName} x${repeatCount}!`,
-      type: 'gift',
-    });
+  connection.on(WebcastEvent.SHARE, (data) => {
+    if (!alive()) return;
+    const { name, uniqueId } = userOf(data);
+    void emitSocial(sup, 'share', name, uniqueId);
+  });
 
-    const config = await getGiftConfig(creator.profile_id);
-    if (!config.alertsEnabled) return;
+  connection.on(WebcastEvent.MEMBER, (data) => {
+    if (!alive()) return;
+    const { name, uniqueId } = userOf(data);
+    void emitSocial(sup, 'join', name, uniqueId);
+  });
 
-    const alert = config.alerts.get(giftId);
-    if (alert && !alert.enabled) return;
-
-    await send(creator.overlay_token, 'tiktok_gift', {
-      giftId,
-      giftName,
-      giftImageUrl,
-      diamondCount,
-      repeatCount,
-      senderName: username,
-      senderUniqueId: uniqueId,
-      soundUrl: alert?.sound_url ?? null,
-      volume: alert?.volume ?? config.defaultVolume,
-      displaySeconds: alert?.display_seconds ?? config.defaultDisplaySeconds,
-      showVisual: alert?.show_visual ?? config.showGiftVisuals,
-      showSender: alert?.show_sender ?? true,
-      showGiftImage: alert?.show_gift_image ?? true,
-      messageTemplate: alert?.message_template ?? '{name} sent {gift} x{count}!',
-    });
+  connection.on(WebcastEvent.STREAM_END, () => {
+    if (isStale()) return;
+    console.log(`[${creator.tiktok_username}] stream ended`);
+    triggerRecovery(sup, 'Stream ended');
   });
 
   connection.on(WebcastEvent.ROOM_USER, async (data) => {
@@ -285,6 +376,10 @@ function armWatchdog(sup: Supervisor) {
 
 function teardownConn(sup: Supervisor) {
   if (sup.watchdog) { clearTimeout(sup.watchdog); sup.watchdog = null; }
+  if (sup.likeFlushTimer) { clearTimeout(sup.likeFlushTimer); sup.likeFlushTimer = null; }
+  sup.pendingLikes = 0;
+  for (const t of sup.giftComboTimers.values()) clearTimeout(t);
+  sup.giftComboTimers.clear();
   const conn = sup.conn;
   sup.conn = null;
   if (!conn) return;
@@ -330,7 +425,14 @@ async function runAttempt(sup: Supervisor) {
   const connection = setupConnection(sup);
 
   try {
-    await connection.connect();
+    // The library has its own timeouts, but a hung signing request has been
+    // seen to outlive them; race it so the supervisor can never wedge.
+    await Promise.race([
+      connection.connect(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('connect() timed out')), CONNECT_TIMEOUT_MS)
+      ),
+    ]);
   } catch (err) {
     if (supervisors.get(sup.creator.profile_id)?.conn !== connection) return;
     const outcome = classifyAttempt(err);
@@ -469,6 +571,9 @@ async function reconcile() {
       retryTimer: null,
       watchdog: null,
       lastViewerCountWrite: 0,
+      pendingLikes: 0,
+      likeFlushTimer: null,
+      giftComboTimers: new Map(),
     };
     supervisors.set(creator.profile_id, sup);
     await setStatus(creator.profile_id, 'connecting', 'Joining your LIVE…');
@@ -478,6 +583,10 @@ async function reconcile() {
 
 async function main() {
   console.log('Klaups worker starting…');
+  startHealthServer(() => ({
+    supervisors: supervisors.size,
+    live: [...supervisors.values()].filter((s) => s.techState === 'connected').length,
+  }));
   await reconcile();
   setInterval(() => {
     reconcile().catch((err) => console.error('reconcile failed', err));

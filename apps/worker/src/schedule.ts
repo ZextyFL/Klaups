@@ -1,3 +1,9 @@
+import {
+  ConnectTimeoutError,
+  SignatureRateLimitError,
+  UserOfflineError,
+} from 'tiktok-live-connector';
+
 // Retry cadence for the TikTok LIVE supervisor.
 //
 // Two different rhythms, because "we failed to connect" and "the creator is
@@ -45,8 +51,16 @@ export const WATCHDOG_TIMEOUT_MS = 90_000;
 export type FailureOutcome =
   /** TikTok told us the creator is not broadcasting. */
   | { kind: 'not_live'; message: string }
+  /** The signing service throttled us; back off hard, it is not the creator's fault. */
+  | { kind: 'rate_limited'; message: string; retryAfterMs: number }
   /** We could not determine anything — never report this as "offline". */
   | { kind: 'unknown'; message: string };
+
+/** Signing-service throttles clear on the order of a minute; don't hammer it. */
+export const RATE_LIMIT_BACKOFF_MS = 90_000;
+
+/** A single connect() may not hang the supervisor forever. */
+export const CONNECT_TIMEOUT_MS = 30_000;
 
 /**
  * Classify a failed connect().
@@ -65,11 +79,21 @@ export function classifyAttempt(err: unknown): FailureOutcome {
         ? err
         : ((err as { message?: string } | null)?.message ?? 'unknown error');
 
+  // Typed errors first — these are the library's own verdicts.
+  if (err instanceof UserOfflineError) return { kind: 'not_live', message };
+  if (err instanceof SignatureRateLimitError) {
+    return { kind: 'rate_limited', message, retryAfterMs: RATE_LIMIT_BACKOFF_MS };
+  }
+  if (err instanceof ConnectTimeoutError) return { kind: 'unknown', message };
+
+  // Fallbacks for wrapped/legacy shapes where instanceof can't help.
   const code = (err as { code?: string } | null)?.code;
   if (code === 'NOT_LIVE') return { kind: 'not_live', message };
-
-  if (/isn'?t\s+online|is\s+not\s+online|not\s+live|LIVE\s+has\s+ended|offline|user_not_found/i.test(message)) {
+  if (/isn'?t\s+online|is\s+not\s+online|not\s+live|LIVE\s+has\s+ended|user_not_found/i.test(message)) {
     return { kind: 'not_live', message };
+  }
+  if (/rate.?limit|too many requests|429/i.test(message)) {
+    return { kind: 'rate_limited', message, retryAfterMs: RATE_LIMIT_BACKOFF_MS };
   }
 
   return { kind: 'unknown', message };

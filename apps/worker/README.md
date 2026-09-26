@@ -59,11 +59,23 @@ npm start
 ## Deployment
 
 Do **not** deploy this as a Netlify Function. A LIVE connection needs a
-persistent process.
+persistent process. One worker deployment serves every creator; `reconcile()`
+polls Supabase and starts/stops connections automatically.
 
-Good targets include Railway, Render, Fly.io, or a VPS. One worker deployment
-can serve many creators; `reconcile()` polls Supabase and starts/stops
-connections automatically.
+Configs are included for three hosts — pick one:
+
+| Host | How | Notes |
+| --- | --- | --- |
+| **Railway** (easiest) | New project → Deploy from GitHub → set root dir `apps/worker` | Uses `railway.json` + `Dockerfile`. Add env vars in Variables. ~$5/mo. |
+| **Render** | New → Blueprint → this repo | Uses `render.yaml` (`rootDir: apps/worker`). Fill the env vars it prompts for. |
+| **Fly.io** | `cd apps/worker && fly launch --no-deploy && fly secrets set SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… && fly deploy` | Uses `fly.toml`; health check on `/health`. |
+
+Required env vars everywhere: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+Optional: `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` (song requests),
+`EULER_API_KEY` (paid signing tier, see `.env.example`).
+
+Verify: logs show `Klaups worker starting…`; press **Connect TikTok LIVE** in
+the dashboard while live and the status flips to LIVE within ~30s.
 
 ## Operational notes
 
