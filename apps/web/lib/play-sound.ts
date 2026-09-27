@@ -25,9 +25,13 @@ function tone(
   oscillator.stop(start + duration);
 }
 
+// Builtins are synthesized and all finish well inside this window.
+const BUILTIN_DURATION_MS = 1400;
+
 export function playBuiltinSound(
   name: BuiltinSound | string,
-  volume = 1
+  volume = 1,
+  onEnded?: () => void
 ): StopSound | undefined {
   if (typeof window === 'undefined') return;
 
@@ -75,7 +79,8 @@ export function playBuiltinSound(
     if (stopped) return;
     stopped = true;
     void context.close().catch(() => {});
-  }, 1400);
+    onEnded?.();
+  }, BUILTIN_DURATION_MS);
 
   return () => {
     if (stopped) return;
@@ -85,21 +90,41 @@ export function playBuiltinSound(
   };
 }
 
+/**
+ * Plays a builtin (`builtin:name`) or a URL. `onEnded` fires once when the
+ * sound finishes naturally or fails to play — never after an explicit stop —
+ * so callers can hold an alert on screen for exactly as long as its audio.
+ */
 export function playSoundUrl(
   soundUrl: string | null | undefined,
-  volume = 1
+  volume = 1,
+  onEnded?: () => void
 ): StopSound | undefined {
-  if (!soundUrl || typeof window === 'undefined') return;
+  if (!soundUrl || typeof window === 'undefined') {
+    onEnded?.();
+    return;
+  }
 
   if (soundUrl.startsWith('builtin:')) {
-    return playBuiltinSound(soundUrl.slice('builtin:'.length), volume);
+    return playBuiltinSound(soundUrl.slice('builtin:'.length), volume, onEnded);
   }
 
   const audio = new Audio(soundUrl);
   let stopped = false;
+  let ended = false;
   audio.volume = Math.min(1, Math.max(0, volume));
 
-  audio.play().catch(() => {});
+  const finish = () => {
+    if (stopped || ended) return;
+    ended = true;
+    onEnded?.();
+  };
+  audio.addEventListener('ended', finish);
+  audio.addEventListener('error', finish);
+
+  // Autoplay can be refused (e.g. a tab that hasn't been interacted with);
+  // treat that as "finished" so nothing waits on a sound that never starts.
+  audio.play().catch(finish);
 
   return () => {
     if (stopped) return;

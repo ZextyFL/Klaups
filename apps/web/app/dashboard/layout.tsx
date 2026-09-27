@@ -2,9 +2,10 @@ import { redirect } from 'next/navigation';
 import { signOut } from '@/app/auth/actions';
 import { getCurrentCreator } from '@/lib/get-current-creator';
 import { Sidebar } from '@/components/dashboard/Sidebar';
+import { SoundboardHotkeys } from '@/components/dashboard/SoundboardHotkeys';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { profile, settings } = await getCurrentCreator();
+  const { profile, settings, user } = await getCurrentCreator();
 
   // Login Kit is optional; a linked username is what every creator tool needs.
   if (!settings.tiktok_username) {
@@ -25,6 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="absolute bottom-[-200px] left-1/3 h-[520px] w-[520px] rounded-full bg-indigo-500/10 blur-[160px]" />
       </div>
 
+      <SoundboardHotkeys profileId={user.id} overlayToken={settings.overlay_token} />
       <Sidebar
         username={profile.username}
         displayName={profile.display_name}

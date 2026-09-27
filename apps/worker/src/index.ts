@@ -72,6 +72,7 @@ type GiftAlert = {
   sound_url: string | null;
   volume: number;
   display_seconds: number;
+  wait_for_sound: boolean;
   show_visual: boolean;
   show_sender: boolean;
   show_gift_image: boolean;
@@ -85,6 +86,7 @@ type GiftConfigCache = {
   defaultDisplaySeconds: number;
   showGiftVisuals: boolean;
   alerts: Map<string, GiftAlert>;
+  alertsByName: Map<string, GiftAlert>;
 };
 
 const giftConfigCache = new Map<string, GiftConfigCache>();
@@ -105,7 +107,7 @@ async function getGiftConfig(profileId: string): Promise<GiftConfigCache> {
       .maybeSingle(),
     supabase
       .from('tiktok_gift_alerts')
-      .select('gift_id, gift_name, enabled, sound_url, volume, display_seconds, show_visual, show_sender, show_gift_image, message_template')
+      .select('gift_id, gift_name, enabled, sound_url, volume, display_seconds, wait_for_sound, show_visual, show_sender, show_gift_image, message_template')
       .eq('profile_id', profileId),
   ]);
 
@@ -116,6 +118,11 @@ async function getGiftConfig(profileId: string): Promise<GiftConfigCache> {
     defaultDisplaySeconds: Number(settings?.default_display_seconds ?? 5),
     showGiftVisuals: settings?.show_gift_visuals ?? true,
     alerts: new Map((alerts ?? []).map((alert) => [String(alert.gift_id), alert as GiftAlert])),
+    // Alerts set up from the dashboard catalog before a gift was ever seen are
+    // keyed by name ("name:rose"); index them by name too so they still fire.
+    alertsByName: new Map(
+      (alerts ?? []).map((alert) => [giftNameKey(String(alert.gift_name)), alert as GiftAlert])
+    ),
   };
 
   giftConfigCache.set(profileId, value);
@@ -194,7 +201,9 @@ async function fireGift(sup: Supervisor, raw: GiftRaw) {
   const config = await getGiftConfig(creator.profile_id);
   if (!config.alertsEnabled) return;
 
-  const alert = config.alerts.get(giftId);
+  // Real TikTok id first (set after the gift was seen live), then the name
+  // key a catalog/custom alert was saved under.
+  const alert = config.alerts.get(giftId) ?? config.alertsByName.get(giftNameKey(giftName));
   if (alert && !alert.enabled) return;
 
   await send(creator.overlay_token, 'tiktok_gift', {
@@ -208,10 +217,51 @@ async function fireGift(sup: Supervisor, raw: GiftRaw) {
     soundUrl: alert?.sound_url ?? null,
     volume: alert?.volume ?? config.defaultVolume,
     displaySeconds: alert?.display_seconds ?? config.defaultDisplaySeconds,
+    waitForSound: alert?.wait_for_sound ?? false,
     showVisual: alert?.show_visual ?? config.showGiftVisuals,
     showSender: alert?.show_sender ?? true,
     showGiftImage: alert?.show_gift_image ?? true,
     messageTemplate: alert?.message_template ?? '{name} sent {gift} x{count}!',
+  });
+}
+
+function giftNameKey(name: string) {
+  return `name:${name.trim().toLowerCase().replace(/\s+/g, ' ')}`;
+}
+
+/**
+ * Follow/share alerts are opt-in: they only fire when the creator configured
+ * one in the dashboard (unlike gifts, which alert by default), since a busy
+ * LIVE gets far more follows than anyone wants sounds for.
+ */
+async function fireEventAlert(
+  sup: Supervisor,
+  eventKey: 'event:follow' | 'event:share',
+  senderName: string,
+  senderUniqueId: string | null
+) {
+  const config = await getGiftConfig(sup.creator.profile_id);
+  if (!config.alertsEnabled) return;
+  const alert = config.alerts.get(eventKey);
+  if (!alert || !alert.enabled) return;
+
+  await send(sup.creator.overlay_token, 'tiktok_gift', {
+    giftId: eventKey,
+    giftName: alert.gift_name,
+    giftImageUrl: null,
+    diamondCount: null,
+    repeatCount: 1,
+    senderName,
+    senderUniqueId,
+    soundUrl: alert.sound_url,
+    volume: alert.volume,
+    displaySeconds: alert.display_seconds,
+    waitForSound: alert.wait_for_sound,
+    showVisual: alert.show_visual,
+    showSender: alert.show_sender,
+    showGiftImage: false,
+    messageTemplate: alert.message_template,
+    isEvent: true,
   });
 }
 
@@ -303,12 +353,14 @@ function setupConnection(sup: Supervisor) {
     if (!alive()) return;
     const { name, uniqueId } = userOf(data);
     void emitSocial(sup, 'follow', name, uniqueId);
+    void fireEventAlert(sup, 'event:follow', name, uniqueId);
   });
 
   connection.on(WebcastEvent.SHARE, (data) => {
     if (!alive()) return;
     const { name, uniqueId } = userOf(data);
     void emitSocial(sup, 'share', name, uniqueId);
+    void fireEventAlert(sup, 'event:share', name, uniqueId);
   });
 
   connection.on(WebcastEvent.MEMBER, (data) => {

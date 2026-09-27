@@ -20,7 +20,7 @@ export default async function SoundboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Soundboard"
-        description="Trigger sounds from Klaups with buttons or keyboard shortcuts and send them straight to your stream browser source."
+        description="Play sounds on stream with a click or a keybind. Press any key or combo to bind it."
       />
 
       <div className="card rounded-3xl">
@@ -40,7 +40,7 @@ export default async function SoundboardPage() {
         </div>
       </div>
 
-      <SoundboardManager profileId={user.id} sounds={sounds ?? []} />
+      <SoundboardManager profileId={user.id} overlayToken={settings.overlay_token} sounds={sounds ?? []} />
     </div>
   );
 }

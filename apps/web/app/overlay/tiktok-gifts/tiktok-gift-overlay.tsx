@@ -15,6 +15,8 @@ type GiftPayload = {
   soundUrl: string | null;
   volume: number;
   displaySeconds: number;
+  waitForSound?: boolean;
+  isEvent?: boolean;
   showVisual: boolean;
   showSender: boolean;
   showGiftImage: boolean;
@@ -44,15 +46,42 @@ export function TikTokGiftOverlay({ overlayToken }: { overlayToken: string }) {
   useEffect(() => {
     if (!current) return;
 
-    const duration = Math.min(60, Math.max(1, Number(current.displaySeconds) || 5));
-    const stop = playSoundUrl(current.soundUrl, Math.min(1, Math.max(0, Number(current.volume) / 100)));
+    const minSeconds = Math.min(60, Math.max(1, Number(current.displaySeconds) || 5));
+    const volume = Math.min(1, Math.max(0, Number(current.volume) / 100));
+    const startedAt = Date.now();
+    let done = false;
+    let timer: number | undefined;
 
-    const timer = window.setTimeout(() => {
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timer);
       stop?.();
       setCurrent(null);
-    }, duration * 1000);
+    };
+
+    // "Stay until sound ends": displaySeconds is the minimum, the sound's own
+    // length decides beyond that, and 60s is the hard cap. Otherwise the
+    // alert (and its sound) end at exactly displaySeconds.
+    const stop = playSoundUrl(
+      current.soundUrl,
+      volume,
+      current.waitForSound
+        ? () => {
+            const remaining = minSeconds * 1000 - (Date.now() - startedAt);
+            if (remaining <= 0) finish();
+            else {
+              window.clearTimeout(timer);
+              timer = window.setTimeout(finish, remaining);
+            }
+          }
+        : undefined
+    );
+
+    timer = window.setTimeout(finish, (current.waitForSound ? 60 : minSeconds) * 1000);
 
     return () => {
+      done = true;
       window.clearTimeout(timer);
       stop?.();
     };
@@ -61,9 +90,9 @@ export function TikTokGiftOverlay({ overlayToken }: { overlayToken: string }) {
   if (!current) return null;
 
   const message = current.messageTemplate
-    .replace('{name}', current.senderName)
-    .replace('{gift}', current.giftName)
-    .replace('{count}', String(current.repeatCount));
+    .replaceAll('{name}', current.senderName)
+    .replaceAll('{gift}', current.giftName)
+    .replaceAll('{count}', String(current.repeatCount));
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent p-5 text-center">
@@ -80,7 +109,7 @@ export function TikTokGiftOverlay({ overlayToken }: { overlayToken: string }) {
           )}
 
           <p className="relative text-3xl font-black tracking-tight [text-shadow:0_3px_12px_rgba(0,0,0,0.95)]">
-            {current.showSender ? message : `${current.giftName} ×${current.repeatCount}`}
+            {current.showSender ? message : current.isEvent ? current.giftName : `${current.giftName} ×${current.repeatCount}`}
           </p>
 
           {current.diamondCount !== null && (

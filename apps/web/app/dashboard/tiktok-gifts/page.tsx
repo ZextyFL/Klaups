@@ -2,7 +2,8 @@ import { getCurrentCreator } from '@/lib/get-current-creator';
 import { siteUrl } from '@/lib/site-url';
 import { PageHeader } from '@/components/dashboard/PageHeader';
 import { CopyField } from '../copy-field';
-import { TikTokGiftManager, type GiftRow } from './tiktok-gift-manager';
+import { TikTokGiftManager } from './tiktok-gift-manager';
+import { buildGiftRows } from './gift-rows';
 
 export default async function TikTokGiftsPage() {
   const { settings, supabase, user } = await getCurrentCreator();
@@ -31,50 +32,12 @@ export default async function TikTokGiftsPage() {
         .limit(8),
     ]);
 
-  const alertByGift = new Map((alerts ?? []).map((alert) => [String(alert.gift_id), alert]));
-  const seenIds = new Set((seen ?? []).map((gift) => String(gift.gift_id)));
-
-  const gifts: GiftRow[] = (seen ?? []).map((gift) => {
-    const alert = alertByGift.get(String(gift.gift_id));
-    return {
-      giftId: String(gift.gift_id),
-      giftName: gift.gift_name,
-      imageUrl: gift.image_url,
-      diamondCount: gift.diamond_count,
-      timesReceived: Number(gift.times_received ?? 0),
-      lastSeenAt: gift.last_seen_at,
-      alertId: alert?.id ?? null,
-      enabled: alert?.enabled ?? true,
-      soundUrl: alert?.sound_url ?? null,
-      volume: Number(alert?.volume ?? giftSettings?.default_volume ?? 100),
-      displaySeconds: Number(alert?.display_seconds ?? giftSettings?.default_display_seconds ?? 5),
-      showVisual: alert?.show_visual ?? giftSettings?.show_gift_visuals ?? true,
-      showSender: alert?.show_sender ?? true,
-      showGiftImage: alert?.show_gift_image ?? true,
-      messageTemplate: alert?.message_template ?? '{name} sent {gift} x{count}!',
-    };
-  });
-
-  for (const alert of alerts ?? []) {
-    if (seenIds.has(String(alert.gift_id))) continue;
-    gifts.push({
-      giftId: String(alert.gift_id),
-      giftName: alert.gift_name,
-      imageUrl: null,
-      diamondCount: null,
-      timesReceived: 0,
-      lastSeenAt: alert.updated_at,
-      alertId: alert.id,
-      enabled: alert.enabled,
-      soundUrl: alert.sound_url,
-      volume: Number(alert.volume),
-      displaySeconds: Number(alert.display_seconds),
-      showVisual: alert.show_visual,
-      showSender: alert.show_sender,
-      showGiftImage: alert.show_gift_image,
-      messageTemplate: alert.message_template,
-    });
-  }
+  const defaults = {
+    volume: Number(giftSettings?.default_volume ?? 100),
+    displaySeconds: Number(giftSettings?.default_display_seconds ?? 5),
+    showVisual: giftSettings?.show_gift_visuals ?? true,
+  };
+  const gifts = buildGiftRows(seen ?? [], alerts ?? [], defaults);
 
   const overlayUrl = `${siteUrl()}/overlay/tiktok-gifts?token=${settings.overlay_token}`;
 
@@ -92,8 +55,9 @@ export default async function TikTokGiftsPage() {
               <p className="eyebrow">Gift Reactor</p>
               <h2 className="mt-1 text-xl font-semibold">One gift. One reaction.</h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-white/45">
-                Klaups learns the gifts your viewers actually send. Assign a different MP3 or built-in
-                sound to each one and test it through the same realtime channel as your LIVE.
+                Every popular gift is ready to set up now — pick a sound, how long it stays on
+                screen, and test it on your stream before you go LIVE. Gifts your viewers send
+                are added automatically.
               </p>
             </div>
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${

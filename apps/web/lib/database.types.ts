@@ -65,6 +65,7 @@ export interface SoundboardSound {
   keybind: string | null;
   sort_order: number;
   enabled: boolean;
+  volume: number;
   created_at: string;
   updated_at: string;
 }
@@ -174,6 +175,7 @@ export interface TikTokGiftAlert {
   show_sender: boolean;
   show_gift_image: boolean;
   message_template: string;
+  wait_for_sound: boolean;
   created_at: string;
   updated_at: string;
 }

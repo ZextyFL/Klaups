@@ -3,25 +3,12 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { playSoundUrl } from '@/lib/play-sound';
+import { playSoundUrl, type StopSound } from '@/lib/play-sound';
+import { AUDIO_ACCEPT, prepareAudioUpload } from '@/lib/audio-upload';
+import { giftNameKey } from '@/lib/gift-catalog';
+import type { GiftRow } from './gift-rows';
 
-export type GiftRow = {
-  giftId: string;
-  giftName: string;
-  imageUrl: string | null;
-  diamondCount: number | null;
-  timesReceived: number;
-  lastSeenAt: string;
-  alertId: string | null;
-  enabled: boolean;
-  soundUrl: string | null;
-  volume: number;
-  displaySeconds: number;
-  showVisual: boolean;
-  showSender: boolean;
-  showGiftImage: boolean;
-  messageTemplate: string;
-};
+export type { GiftRow };
 
 const BUILTIN_SOUNDS = [
   { value: '', label: 'No sound' },
@@ -32,39 +19,34 @@ const BUILTIN_SOUNDS = [
   { value: 'builtin:applause', label: 'Applause' },
 ];
 
-const ALLOWED_AUDIO = new Set(['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg']);
-const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+type Filter = 'all' | 'configured' | 'live' | 'events';
 
-function Switch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  label: string;
-}) {
+function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      onClick={() => onChange(!checked)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(!checked);
+      }}
       className={`relative h-6 w-11 shrink-0 rounded-full border transition ${
-        checked
-          ? 'border-brand-400/40 bg-brand-500'
-          : 'border-white/10 bg-white/[0.08]'
+        checked ? 'border-brand-400/40 bg-brand-500' : 'border-white/10 bg-white/[0.08]'
       }`}
     >
       <span
-        className={`absolute top-0.5 h-4.5 w-4.5 rounded-full bg-white shadow transition-all ${
-          checked ? 'left-[22px]' : 'left-[3px]'
-        }`}
+        className={`absolute top-0.5 rounded-full bg-white shadow transition-all ${checked ? 'left-[22px]' : 'left-[3px]'}`}
         style={{ width: 18, height: 18 }}
       />
     </button>
   );
+}
+
+function soundLabel(url: string | null) {
+  if (!url) return 'No sound';
+  return BUILTIN_SOUNDS.find((s) => s.value === url)?.label ?? 'Custom sound';
 }
 
 export function TikTokGiftManager({
@@ -84,37 +66,51 @@ export function TikTokGiftManager({
   const supabase = createClient();
   const router = useRouter();
   const uploadInput = useRef<HTMLInputElement>(null);
+  const previewStop = useRef<StopSound | undefined>(undefined);
   const [uploadGift, setUploadGift] = useState<GiftRow | null>(null);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [alertsEnabled, setAlertsEnabled] = useState(initialSettings.alertsEnabled);
   const [showGiftVisuals, setShowGiftVisuals] = useState(initialSettings.showGiftVisuals);
-  const [volumeDrafts, setVolumeDrafts] = useState<Record<string, number>>({});
+  const [drafts, setDrafts] = useState<Record<string, { volume?: number; displaySeconds?: number }>>({});
+  const [customName, setCustomName] = useState('');
+
+  const counts = useMemo(
+    () => ({
+      all: gifts.length,
+      configured: gifts.filter((g) => g.configured).length,
+      live: gifts.filter((g) => g.seenLive).length,
+      events: gifts.filter((g) => g.kind === 'event').length,
+    }),
+    [gifts]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return gifts;
-    return gifts.filter((gift) => gift.giftName.toLowerCase().includes(q));
-  }, [gifts, search]);
+    return gifts.filter((gift) => {
+      if (filter === 'configured' && !gift.configured) return false;
+      if (filter === 'live' && !gift.seenLive) return false;
+      if (filter === 'events' && gift.kind !== 'event') return false;
+      return !q || gift.giftName.toLowerCase().includes(q);
+    });
+  }, [gifts, search, filter]);
 
   async function saveGlobal(patch: Record<string, unknown>) {
     setError(null);
-    const { error: updateError } = await supabase.from('tiktok_gift_settings').upsert(
-      {
-        profile_id: profileId,
-        ...patch,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'profile_id' }
-    );
+    const { error: updateError } = await supabase
+      .from('tiktok_gift_settings')
+      .upsert({ profile_id: profileId, ...patch, updated_at: new Date().toISOString() }, { onConflict: 'profile_id' });
     if (updateError) setError(updateError.message);
     else router.refresh();
   }
 
   async function saveGift(gift: GiftRow, patch: Partial<GiftRow>) {
-    setBusy(gift.giftId);
+    setBusy(gift.rowKey);
     setError(null);
 
     const row = {
@@ -125,6 +121,7 @@ export function TikTokGiftManager({
       sound_url: patch.soundUrl !== undefined ? patch.soundUrl : gift.soundUrl,
       volume: patch.volume ?? gift.volume,
       display_seconds: patch.displaySeconds ?? gift.displaySeconds,
+      wait_for_sound: patch.waitForSound ?? gift.waitForSound,
       show_visual: patch.showVisual ?? gift.showVisual,
       show_sender: patch.showSender ?? gift.showSender,
       show_gift_image: patch.showGiftImage ?? gift.showGiftImage,
@@ -141,34 +138,44 @@ export function TikTokGiftManager({
     else router.refresh();
   }
 
+  async function resetGift(gift: GiftRow) {
+    setBusy(gift.rowKey);
+    const { error: deleteError } = await supabase
+      .from('tiktok_gift_alerts')
+      .delete()
+      .eq('profile_id', profileId)
+      .eq('gift_id', gift.giftId);
+    setBusy(null);
+    if (deleteError) setError(deleteError.message);
+    else router.refresh();
+  }
+
   async function upload(file: File) {
     const gift = uploadGift;
     if (!gift) return;
-
-    if (!ALLOWED_AUDIO.has(file.type)) {
-      setError('Use an MP3, WAV or OGG audio file.');
-      return;
-    }
-    if (file.size > MAX_AUDIO_BYTES) {
-      setError('Gift sounds can be up to 15 MB.');
+    const prepared = prepareAudioUpload(file);
+    if (!prepared.ok) {
+      setError(prepared.error);
+      setUploadGift(null);
+      if (uploadInput.current) uploadInput.current.value = '';
       return;
     }
 
-    setBusy(gift.giftId);
+    setBusy(gift.rowKey);
     setError(null);
     try {
-      const extension =
-        file.type.includes('ogg') ? 'ogg' : file.type.includes('wav') ? 'wav' : 'mp3';
-      const path = `${profileId}/${gift.giftId}/${crypto.randomUUID()}.${extension}`;
+      // Storage paths can't contain ':' reliably across tools; slug the key.
+      const folder = gift.giftId.replace(/[^a-zA-Z0-9_-]+/g, '-');
+      const path = `${profileId}/${folder}/${crypto.randomUUID()}.${prepared.extension}`;
       const { error: uploadError } = await supabase.storage
         .from('gift-sounds')
-        .upload(path, file, { cacheControl: '3600', upsert: false });
+        .upload(path, file, { contentType: prepared.contentType, cacheControl: '3600', upsert: false });
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('gift-sounds').getPublicUrl(path);
       await saveGift(gift, { soundUrl: data.publicUrl });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Audio upload failed.');
+      setError(e instanceof Error ? `Upload failed: ${e.message}` : 'Audio upload failed.');
       setBusy(null);
     } finally {
       setUploadGift(null);
@@ -176,17 +183,24 @@ export function TikTokGiftManager({
     }
   }
 
+  function preview(gift: GiftRow) {
+    previewStop.current?.();
+    previewStop.current = playSoundUrl(gift.soundUrl, (drafts[gift.rowKey]?.volume ?? gift.volume) / 100);
+  }
+
   async function testGift(gift: GiftRow) {
-    setTesting(gift.giftId);
+    setTesting(gift.rowKey);
     setError(null);
+    setNotice(null);
     try {
       const response = await fetch('/api/test/tiktok-gift', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ giftId: gift.giftId }),
+        body: JSON.stringify({ giftId: gift.giftId, giftName: gift.giftName }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error || 'Could not test gift alert.');
+      setNotice(`Sent a test ${gift.giftName} to your stream overlay.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not test gift alert.');
     } finally {
@@ -194,15 +208,47 @@ export function TikTokGiftManager({
     }
   }
 
+  function addCustom() {
+    const name = customName.trim().slice(0, 60);
+    if (!name) return;
+    const key = giftNameKey(name);
+    const existing = gifts.find((g) => g.rowKey === key);
+    if (existing) {
+      setOpen(existing.rowKey);
+      setFilter('all');
+      setSearch(existing.giftName);
+      setCustomName('');
+      return;
+    }
+    setCustomName('');
+    void saveGift(
+      {
+        rowKey: key, giftId: key, giftName: name, kind: 'gift', icon: '🎁', imageUrl: null,
+        diamondCount: null, timesReceived: 0, seenLive: false, configured: false, enabled: true,
+        soundUrl: 'builtin:chime', volume: initialSettings.defaultVolume,
+        displaySeconds: initialSettings.defaultDisplaySeconds, waitForSound: false,
+        showVisual: initialSettings.showGiftVisuals, showSender: true, showGiftImage: true,
+        messageTemplate: '{name} sent {gift} x{count}!',
+      },
+      {}
+    ).then(() => setOpen(key));
+  }
+
+  const FILTERS: [Filter, string][] = [
+    ['all', 'All'],
+    ['configured', 'Configured'],
+    ['live', 'Received live'],
+    ['events', 'Follows & shares'],
+  ];
+
   return (
     <div className="space-y-4">
       <div className="card rounded-3xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="eyebrow">Control center</p>
-            <h2 className="mt-1 text-lg font-semibold">Gift alerts</h2>
+            <h2 className="mt-1 text-lg font-semibold">Gift & event alerts</h2>
           </div>
-
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-sm text-white/60">
               <Switch
@@ -213,7 +259,7 @@ export function TikTokGiftManager({
                   void saveGlobal({ alerts_enabled: next });
                 }}
               />
-              Sounds enabled
+              Alerts on
             </label>
             <label className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-sm text-white/60">
               <Switch
@@ -226,214 +272,270 @@ export function TikTokGiftManager({
               />
               Visuals
             </label>
-            <div className="relative min-w-[230px] flex-1 lg:flex-none">
-              <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
-              <input
-                className="input pl-9"
-                placeholder="Search gifts…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
           </div>
         </div>
+
+        <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-wrap gap-1.5">
+            {FILTERS.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFilter(value)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  filter === value ? 'bg-white text-black' : 'bg-white/[0.05] text-white/55 hover:text-white'
+                }`}
+              >
+                {label} <span className="opacity-50">{counts[value]}</span>
+              </button>
+            ))}
+          </div>
+          <div className="relative flex-1">
+            <input className="input" placeholder="Search gifts…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+        </div>
+
         {error && <p className="mt-4 rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+        {notice && !error && (
+          <p className="mt-4 rounded-xl bg-green-500/10 px-3 py-2 text-sm text-green-300">{notice}</p>
+        )}
       </div>
 
       <input
         ref={uploadInput}
         type="file"
-        accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
+        accept={AUDIO_ACCEPT}
         className="hidden"
         onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
       />
 
-      {filtered.map((gift) => {
-        const soundChoice = gift.soundUrl?.startsWith('builtin:') ? gift.soundUrl : gift.soundUrl ? 'custom' : '';
-        const displayVolume = volumeDrafts[gift.giftId] ?? gift.volume;
+      <div className="card overflow-hidden rounded-3xl p-0">
+        <div className="divide-y divide-white/[0.06]">
+          {filtered.map((gift) => {
+            const isOpen = open === gift.rowKey;
+            const volume = drafts[gift.rowKey]?.volume ?? gift.volume;
+            const seconds = drafts[gift.rowKey]?.displaySeconds ?? gift.displaySeconds;
+            const soundChoice = gift.soundUrl?.startsWith('builtin:') ? gift.soundUrl : gift.soundUrl ? 'custom' : '';
 
-        return (
-          <div key={gift.giftId} className="card rounded-3xl p-0 overflow-hidden">
-            <div className="grid gap-4 border-b border-white/[0.06] px-5 py-4 lg:grid-cols-[minmax(220px,1fr)_180px_150px_auto] lg:items-center">
-              <div className="flex min-w-0 items-center gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.035]">
-                  {gift.imageUrl ? (
-                    <img src={gift.imageUrl} alt="" className="h-11 w-11 object-contain" />
-                  ) : (
-                    <span className="text-xl">🎁</span>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{gift.giftName}</p>
-                  <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-white/35">
-                    {gift.diamondCount !== null && <span>◆ {gift.diamondCount} diamonds</span>}
-                    <span>{gift.timesReceived.toLocaleString()} received</span>
+            return (
+              <div key={gift.rowKey} className={isOpen ? 'bg-white/[0.02]' : ''}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOpen(isOpen ? null : gift.rowKey)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setOpen(isOpen ? null : gift.rowKey);
+                    }
+                  }}
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition hover:bg-white/[0.02] sm:px-5"
+                >
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-xl">
+                    {gift.imageUrl ? <img src={gift.imageUrl} alt="" className="h-9 w-9 object-contain" /> : gift.icon}
                   </div>
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2 text-sm text-white/55">
-                <Switch
-                  checked={gift.enabled}
-                  label={`${gift.giftName} enabled`}
-                  onChange={(enabled) => void saveGift(gift, { enabled })}
-                />
-                Enabled
-              </label>
-
-              <button
-                type="button"
-                onClick={() => testGift(gift)}
-                disabled={testing === gift.giftId}
-                className="btn-secondary text-sm"
-              >
-                {testing === gift.giftId ? 'Testing…' : 'Test gift'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => playSoundUrl(gift.soundUrl, gift.volume / 100)}
-                disabled={!gift.soundUrl}
-                className="btn-ghost justify-self-start text-sm disabled:cursor-not-allowed disabled:opacity-30 lg:justify-self-end"
-              >
-                ▶ Preview
-              </button>
-            </div>
-
-            <div className="grid gap-5 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
-              <div>
-                <label className="label">Gift sound</label>
-                <div className="relative">
-                  <select
-                    className="input appearance-none pr-10"
-                    value={soundChoice}
-                    disabled={busy === gift.giftId}
-                    onChange={(e) => {
-                      if (e.target.value === 'custom') return;
-                      void saveGift(gift, { soundUrl: e.target.value || null });
-                    }}
-                  >
-                    {BUILTIN_SOUNDS.map((sound) => (
-                      <option key={sound.value} value={sound.value}>{sound.label}</option>
-                    ))}
-                    {gift.soundUrl && !gift.soundUrl.startsWith('builtin:') && (
-                      <option value="custom">Custom upload</option>
-                    )}
-                  </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/35">⌄</span>
-                </div>
-                <div className="mt-2 flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-2 truncate font-medium">
+                      {gift.giftName}
+                      {gift.seenLive && (
+                        <span className="rounded-full bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-200">
+                          {gift.timesReceived.toLocaleString()}× live
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-white/35">
+                      {gift.diamondCount !== null && <>◆ {gift.diamondCount.toLocaleString()} · </>}
+                      {gift.configured ? (
+                        <>
+                          {soundLabel(gift.soundUrl)} · {gift.waitForSound ? `≥${gift.displaySeconds}s, until sound ends` : `${gift.displaySeconds}s`}
+                        </>
+                      ) : (
+                        'Not set up — click to add a sound'
+                      )}
+                    </p>
+                  </div>
+                  {gift.configured && (
+                    <Switch checked={gift.enabled} label={`${gift.giftName} enabled`} onChange={(enabled) => void saveGift(gift, { enabled })} />
+                  )}
                   <button
                     type="button"
-                    className="rounded-lg border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs text-white/60 hover:text-white"
-                    onClick={() => {
-                      setUploadGift(gift);
-                      uploadInput.current?.click();
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void testGift(gift);
                     }}
+                    disabled={testing === gift.rowKey}
+                    className="btn-secondary hidden text-xs sm:inline-flex"
                   >
-                    Upload MP3
+                    {testing === gift.rowKey ? 'Sending…' : 'Test'}
                   </button>
-                  {gift.soundUrl && (
-                    <button
-                      type="button"
-                      className="rounded-lg px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
-                      onClick={() => void saveGift(gift, { soundUrl: null })}
-                    >
-                      Remove
-                    </button>
-                  )}
+                  <span className={`text-white/35 transition ${isOpen ? 'rotate-180' : ''}`}>⌄</span>
                 </div>
+
+                {isOpen && (
+                  <div className="grid gap-5 border-t border-white/[0.06] px-4 py-5 sm:px-5 md:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                      <label className="label">Sound</label>
+                      <select
+                        className="input"
+                        value={soundChoice}
+                        disabled={busy === gift.rowKey}
+                        onChange={(e) => {
+                          if (e.target.value === 'custom') return;
+                          void saveGift(gift, { soundUrl: e.target.value || null });
+                        }}
+                      >
+                        {BUILTIN_SOUNDS.map((sound) => (
+                          <option key={sound.value} value={sound.value}>{sound.label}</option>
+                        ))}
+                        {soundChoice === 'custom' && <option value="custom">Custom upload</option>}
+                      </select>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="rounded-lg border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs text-white/70 hover:text-white"
+                          disabled={busy === gift.rowKey}
+                          onClick={() => {
+                            setUploadGift(gift);
+                            uploadInput.current?.click();
+                          }}
+                        >
+                          {busy === gift.rowKey && uploadGift ? 'Uploading…' : '⬆ Upload sound'}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg px-3 py-1.5 text-xs text-white/60 hover:bg-white/[0.05] hover:text-white disabled:opacity-30"
+                          disabled={!gift.soundUrl}
+                          onClick={() => preview(gift)}
+                        >
+                          ▶ Preview
+                        </button>
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-white/30">MP3, WAV, OGG, M4A, AAC · 15 MB</p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="label">Volume</label>
+                        <span className="text-xs text-white/45">{volume}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={volume}
+                        className="mt-2 w-full accent-pink-500"
+                        onChange={(e) =>
+                          setDrafts((d) => ({ ...d, [gift.rowKey]: { ...d[gift.rowKey], volume: Number(e.target.value) } }))
+                        }
+                        onPointerUp={(e) => void saveGift(gift, { volume: Number((e.target as HTMLInputElement).value) })}
+                        onKeyUp={(e) => void saveGift(gift, { volume: Number((e.target as HTMLInputElement).value) })}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="label">Time on screen</label>
+                        <span className="text-xs text-white/45">{seconds}s</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={60}
+                        step={1}
+                        value={seconds}
+                        className="mt-2 w-full accent-pink-500"
+                        onChange={(e) =>
+                          setDrafts((d) => ({ ...d, [gift.rowKey]: { ...d[gift.rowKey], displaySeconds: Number(e.target.value) } }))
+                        }
+                        onPointerUp={(e) => void saveGift(gift, { displaySeconds: Number((e.target as HTMLInputElement).value) })}
+                        onKeyUp={(e) => void saveGift(gift, { displaySeconds: Number((e.target as HTMLInputElement).value) })}
+                      />
+                      <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-sm text-white/60">
+                        <span>
+                          Stay until sound ends
+                          <span className="block text-[11px] text-white/30">Never cuts a long sound off (max 60s)</span>
+                        </span>
+                        <Switch checked={gift.waitForSound} label="Stay until sound ends" onChange={(waitForSound) => void saveGift(gift, { waitForSound })} />
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="label">On stream</label>
+                      <div className="space-y-2">
+                        {(
+                          [
+                            ['showVisual', 'Show alert'],
+                            ['showSender', 'Show sender name'],
+                            ['showGiftImage', 'Show gift image'],
+                          ] as const
+                        ).map(([field, label]) => (
+                          <label key={field} className="flex cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-sm text-white/55">
+                            {label}
+                            <Switch checked={gift[field]} label={label} onChange={(value) => void saveGift(gift, { [field]: value })} />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 xl:col-span-4">
+                      <label className="label">On-screen message</label>
+                      <input
+                        key={`${gift.rowKey}-${gift.messageTemplate}`}
+                        className="input"
+                        defaultValue={gift.messageTemplate}
+                        onBlur={(e) => {
+                          const next = e.target.value.trim() || '{name} sent {gift} x{count}!';
+                          if (next !== gift.messageTemplate) void saveGift(gift, { messageTemplate: next });
+                        }}
+                      />
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-white/30">Variables: {'{name}'} · {'{gift}'} · {'{count}'}</p>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => void testGift(gift)} className="btn-secondary text-xs sm:hidden">
+                            Test
+                          </button>
+                          {gift.configured && (
+                            <button
+                              type="button"
+                              onClick={() => void resetGift(gift)}
+                              className="rounded-lg px-3 py-1.5 text-xs text-red-300/80 hover:bg-red-500/10 hover:text-red-300"
+                            >
+                              Reset to default
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
+            );
+          })}
 
-              <div>
-                <div className="flex items-center justify-between">
-                  <label className="label">Volume</label>
-                  <span className="text-xs font-medium text-white/45">{displayVolume}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={displayVolume}
-                  className="mt-2 w-full accent-pink-500"
-                  onChange={(e) => {
-                    const value = Number(e.target.value);
-                    setVolumeDrafts((current) => ({ ...current, [gift.giftId]: value }));
-                  }}
-                  onPointerUp={(e) => {
-                    const value = Number((e.target as HTMLInputElement).value);
-                    void saveGift(gift, { volume: value });
-                  }}
-                  onKeyUp={(e) => {
-                    const value = Number((e.target as HTMLInputElement).value);
-                    void saveGift(gift, { volume: value });
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="label">Alert duration</label>
-                <div className="relative">
-                  <select
-                    className="input appearance-none pr-10"
-                    value={String(gift.displaySeconds)}
-                    onChange={(e) => void saveGift(gift, { displaySeconds: Number(e.target.value) })}
-                  >
-                    {[3, 4, 5, 6, 8, 10, 15].map((seconds) => (
-                      <option key={seconds} value={seconds}>{seconds} seconds</option>
-                    ))}
-                  </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/35">⌄</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="label">On stream</label>
-                <div className="space-y-2">
-                  <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-sm text-white/55">
-                    Show visual
-                    <Switch checked={gift.showVisual} label="Show visual" onChange={(showVisual) => void saveGift(gift, { showVisual })} />
-                  </label>
-                  <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-sm text-white/55">
-                    Show sender
-                    <Switch checked={gift.showSender} label="Show sender" onChange={(showSender) => void saveGift(gift, { showSender })} />
-                  </label>
-                  <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-sm text-white/55">
-                    Gift image
-                    <Switch checked={gift.showGiftImage} label="Show gift image" onChange={(showGiftImage) => void saveGift(gift, { showGiftImage })} />
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-white/[0.06] px-5 py-4">
-              <label className="label">On-screen message</label>
-              <input
-                className="input"
-                defaultValue={gift.messageTemplate}
-                onBlur={(e) => void saveGift(gift, { messageTemplate: e.target.value || '{name} sent {gift} x{count}!' })}
-              />
-              <p className="mt-1.5 text-xs text-white/30">
-                Variables: {'{name}'} · {'{gift}'} · {'{count}'}
-              </p>
-            </div>
-          </div>
-        );
-      })}
-
-      {filtered.length === 0 && (
-        <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-14 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.05] text-2xl">🎁</div>
-          <p className="mt-4 font-semibold">{gifts.length ? 'No gifts match your search' : 'No gifts discovered yet'}</p>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/40">
-            When somebody sends a completed TikTok LIVE gift, Klaups learns it automatically and it appears here ready to customize.
-          </p>
+          {filtered.length === 0 && (
+            <p className="px-6 py-12 text-center text-sm text-white/40">No gifts match — add it by name below.</p>
+          )}
         </div>
-      )}
+      </div>
+
+      <div className="card flex flex-col gap-3 rounded-3xl sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <label className="label">Gift not in the list?</label>
+          <input
+            className="input"
+            placeholder="Type the exact gift name, e.g. Sunglasses"
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addCustom();
+            }}
+          />
+        </div>
+        <button type="button" className="btn-accent" onClick={addCustom} disabled={!customName.trim()}>
+          Add gift
+        </button>
+      </div>
     </div>
   );
 }

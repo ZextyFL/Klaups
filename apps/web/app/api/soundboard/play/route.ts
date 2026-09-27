@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       .single(),
     admin
       .from('soundboard_sounds')
-      .select('id, profile_id, name, sound_url, enabled')
+      .select('id, profile_id, name, sound_url, enabled, volume')
       .eq('id', soundId)
       .eq('profile_id', user.id)
       .single(),
@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     id: sound.id,
     name: sound.name,
     soundUrl: sound.sound_url,
+    volume: sound.volume,
   });
 
   return NextResponse.json({ ok: true });
