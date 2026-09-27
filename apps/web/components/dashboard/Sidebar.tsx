@@ -21,12 +21,11 @@ function groups(verified: boolean): NavGroup[] {
       title: 'Money',
       items: [
         { href: '/dashboard/donations', label: 'Donations', icon: 'heart' },
-        { href: '/dashboard/payouts', label: 'Payouts', icon: 'bank' },
         {
-          href: '/dashboard/verify',
-          label: 'Verify account',
-          icon: 'shield',
-          badge: verified ? 'Verified' : 'Required',
+          href: '/dashboard/payouts',
+          label: 'Payouts',
+          icon: 'bank',
+          badge: verified ? undefined : 'Add IBAN',
         },
       ],
     },

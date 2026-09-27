@@ -5,7 +5,7 @@ import { Sidebar } from '@/components/dashboard/Sidebar';
 import { SoundboardHotkeys } from '@/components/dashboard/SoundboardHotkeys';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { profile, settings, user } = await getCurrentCreator();
+  const { profile, settings, user, payoutReady } = await getCurrentCreator();
 
   // Login Kit is optional; a linked username is what every creator tool needs.
   if (!settings.tiktok_username) {
@@ -13,7 +13,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   const live = settings.tiktok_worker_enabled && settings.tiktok_status === 'live';
-  const verified = settings.stripe_connect_onboarded && settings.stripe_payouts_enabled;
+  const verified = payoutReady;
 
   return (
     <div className="relative min-h-screen bg-black lg:flex">

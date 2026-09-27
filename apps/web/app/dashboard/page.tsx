@@ -14,7 +14,7 @@ function startOfToday() {
 }
 
 export default async function DashboardOverview() {
-  const { settings, balance, supabase, user, profile } = await getCurrentCreator();
+  const { settings, balance, supabase, user, profile, payoutReady } = await getCurrentCreator();
 
   const [{ data: goal }, { data: todayDonations }, { data: recentDonations }] =
     await Promise.all([
@@ -45,7 +45,7 @@ export default async function DashboardOverview() {
 
   const live = settings.tiktok_worker_enabled && settings.tiktok_status === 'live';
   const connected = settings.tiktok_worker_enabled && Boolean(settings.tiktok_username);
-  const verified = settings.stripe_connect_onboarded && settings.stripe_payouts_enabled;
+  const verified = payoutReady;
   const donateUrl = `${siteUrl()}/donate/${settings.donation_slug}`;
 
   return (
@@ -73,16 +73,16 @@ export default async function DashboardOverview() {
 
       {!verified && (
         <Link
-          href="/dashboard/verify"
+          href="/dashboard/payouts"
           className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-400/15 bg-amber-500/[0.06] px-5 py-4 transition hover:bg-amber-500/[0.09]"
         >
           <div>
-            <p className="font-medium text-amber-200">Verify your account for payouts</p>
+            <p className="font-medium text-amber-200">Add your bank account to get paid</p>
             <p className="mt-1 text-sm text-white/45">
-              Complete Stripe verification so your Klaups balance can be paid to your bank.
+              Confirm your email and add your IBAN — then request a payout any time.
             </p>
           </div>
-          <span className="text-sm font-medium text-amber-200">Verify account →</span>
+          <span className="text-sm font-medium text-amber-200">Add IBAN →</span>
         </Link>
       )}
 
@@ -101,7 +101,11 @@ export default async function DashboardOverview() {
                     {formatCents(balance?.available_cents ?? 0, settings.currency)}
                   </p>
                   <p className="mt-2 text-sm text-white/35">
-                    {verified ? 'Ready for the next payout run.' : 'Verification required before payout.'}
+                    {!verified
+                      ? 'Add your IBAN to request payouts.'
+                      : (balance?.pending_cents ?? 0) > 0
+                        ? `+ ${formatCents(balance?.pending_cents ?? 0, settings.currency)} on hold`
+                        : 'Ready to request a payout.'}
                   </p>
                 </div>
                 <Link href="/dashboard/payouts" className="btn-primary">

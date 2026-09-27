@@ -12,37 +12,27 @@ async function handleDonationPaid(session: Stripe.Checkout.Session) {
   if (!profileId) return;
 
   const amountCents = session.amount_total ?? 0;
-  const feeCents = Number(session.metadata?.application_fee_cents ?? '0');
 
   const { data: donation } = await supabase
     .from('donations')
     .update({
       status: 'paid',
+      paid_at: new Date().toISOString(),
       stripe_payment_intent_id:
         typeof session.payment_intent === 'string' ? session.payment_intent : null,
     })
     .eq('stripe_checkout_session_id', session.id)
+    // Stripe redelivers events; only the first delivery may flip the row,
+    // alert the stream and bump the goal.
+    .eq('status', 'pending')
     .select('*')
-    .single();
+    .maybeSingle();
 
   if (!donation) return;
 
-  // Credit the creator's internal balance (money currently lives on the
-  // platform Stripe account; the scheduled payout job later transfers it
-  // to the creator's connected account and pays it out).
-  const { data: balance } = await supabase
-    .from('balances')
-    .select('available_cents')
-    .eq('profile_id', profileId)
-    .single();
-
-  await supabase
-    .from('balances')
-    .upsert({
-      profile_id: profileId,
-      available_cents: (balance?.available_cents ?? 0) + amountCents - feeCents,
-      updated_at: new Date().toISOString(),
-    });
+  // No balance counter to bump: the creator's balance is derived from paid
+  // donations (see get_creator_balance), which also makes redelivered
+  // webhooks harmless — the old read-then-write credit double-counted them.
 
   // Bump today's goal.
   const { data: goal } = await supabase.rpc('get_or_create_today_goal', {

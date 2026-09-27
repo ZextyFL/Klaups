@@ -9,6 +9,5 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# process-payouts.ts in apps/web/netlify/functions runs once a day
-# automatically (schedule is set in the function itself via `export const
-# config = { schedule: '@daily' }`), no extra config needed here.
+# Payouts are manual SEPA transfers requested by creators and processed by
+# the Klaups team at /admin/payouts — there is no scheduled payout job.

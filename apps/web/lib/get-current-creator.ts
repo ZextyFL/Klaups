@@ -2,7 +2,7 @@ import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { Balance, CreatorSettings, Profile } from '@/lib/database.types';
+import type { CreatorSettings, Profile } from '@/lib/database.types';
 
 function slugify(input: string) {
   return input
@@ -55,15 +55,23 @@ async function loadCurrentCreator() {
     Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
       supabase.from('creator_settings').select('*').eq('profile_id', user.id).maybeSingle(),
-      supabase.from('balances').select('*').eq('profile_id', user.id).maybeSingle(),
+      // Balance is derived from the donation/payout ledger, not a counter.
+      supabase.rpc('get_creator_balance', { p_profile_id: user.id }),
+      supabase
+        .from('payout_accounts')
+        .select('account_holder_name, iban_last4, iban_country, verified_email, verified_at, updated_at')
+        .eq('profile_id', user.id)
+        .maybeSingle(),
     ]);
 
-  let [{ data: profile }, { data: settings }, { data: balance }] = await load();
+  let [{ data: profile }, { data: settings }, { data: balanceRows }, { data: payoutAccount }] = await load();
 
   if (!profile || !settings) {
     await provisionCreator(user.id, user.email, user.user_metadata?.username);
-    [{ data: profile }, { data: settings }, { data: balance }] = await load();
+    [{ data: profile }, { data: settings }, { data: balanceRows }, { data: payoutAccount }] = await load();
   }
+
+  const balance = ((balanceRows as CreatorBalance[] | null)?.[0] ?? null);
 
   if (!profile || !settings) {
     redirect('/login?error=Could+not+load+your+creator+profile.+Are+the+database+migrations+applied%3F');
@@ -74,10 +82,34 @@ async function loadCurrentCreator() {
     user,
     profile: profile as Profile,
     settings: settings as CreatorSettings,
-    balance: balance as Balance | null,
+    balance,
+    payoutAccount: (payoutAccount as PayoutAccount | null) ?? null,
+    /** An email-verified IBAN is on file, so payouts can be requested. */
+    payoutReady: Boolean(payoutAccount),
   };
 }
 
 // Dashboard layouts and pages both need this data. React cache deduplicates
 // the auth/profile/settings/balance fetches within a single server render.
 export const getCurrentCreator = cache(loadCurrentCreator);
+
+export type CreatorBalance = {
+  pending_cents: number;
+  available_cents: number;
+  requested_cents: number;
+  paid_out_cents: number;
+  lifetime_cents: number;
+  currency: string;
+  hold_days: number;
+  min_payout_cents: number;
+  next_available_at: string | null;
+};
+
+export type PayoutAccount = {
+  account_holder_name: string;
+  iban_last4: string;
+  iban_country: string;
+  verified_email: string;
+  verified_at: string;
+  updated_at: string;
+};

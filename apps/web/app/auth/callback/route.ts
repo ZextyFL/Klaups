@@ -8,6 +8,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const popup = url.searchParams.get('popup') === '1';
+  // Only same-site dashboard paths — never an open redirect.
+  const nextParam = url.searchParams.get('next') ?? '';
+  const next = /^\/dashboard(\/|\?|$)/.test(nextParam) && !nextParam.startsWith('//') ? nextParam : null;
 
   if (code) {
     const supabase = createClient();
@@ -31,7 +34,7 @@ export async function GET(request: Request) {
       return NextResponse.redirect(
         popup
           ? `${siteUrl()}/auth/popup-complete?ok=1`
-          : `${siteUrl()}/onboarding/tiktok`
+          : `${siteUrl()}${next ?? '/onboarding/tiktok'}`
       );
     }
   }
