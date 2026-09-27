@@ -14,9 +14,18 @@ export function useOverlayPresence(overlayToken: string) {
 
   useEffect(() => {
     const channel = getOverlayChannel(overlayToken);
+    // The channel is shared and usually already subscribed (the dashboard's
+    // soundboard opens it first), and realtime-js throws if presence
+    // callbacks are added after subscribe(). Presence is enabled in the
+    // channel config, so polling presenceState() is enough — no listener.
     channel.subscribe();
-    const read = () => setOverlays(readOverlayPresence(channel.presenceState() as Record<string, unknown[]>));
-    channel.on('presence', { event: 'sync' }, read);
+    const read = () => {
+      try {
+        setOverlays(readOverlayPresence(channel.presenceState() as Record<string, unknown[]>));
+      } catch {
+        // A status widget must never take the page down.
+      }
+    };
     read();
     const poll = window.setInterval(read, 2_000);
     const settle = window.setTimeout(() => setReady(true), 4_000);
