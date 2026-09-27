@@ -4,9 +4,8 @@ import { useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getOverlayChannel } from '@/lib/overlay-channel';
 
-// Subscribes to a creator's overlay broadcast topic and invokes `onEvent`
-// for every named event received (donation, goal_update, chat_message,
-// song_request). Used by all /overlay/* browser-source pages.
+// Subscribes to a creator's overlay broadcast topic and keeps the channel
+// alive so alerts continue working after temporary realtime disconnects.
 export function useOverlayChannel(
   overlayToken: string,
   events: string[],
@@ -15,15 +14,30 @@ export function useOverlayChannel(
   useEffect(() => {
     const supabase = createClient();
     const channel = getOverlayChannel(overlayToken);
+    let disposed = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
     for (const event of events) {
       channel.on('broadcast', { event }, ({ payload }) => onEvent(event, payload));
     }
 
-    channel.subscribe();
+    const subscribe = () => {
+      if (!disposed) channel.subscribe();
+    };
+
+    channel.subscribe((status) => {
+      if (disposed) return;
+
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(subscribe, 750);
+      }
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      disposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      void supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlayToken]);
