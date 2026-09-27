@@ -66,29 +66,26 @@ export function AlertPopup({
     const stopSound = playSoundUrl(current.soundUrl, Math.min(1, Math.max(0, Number(current.volume ?? 100) / 100)));
 
     if (current.speak && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      // Queue the speech instead of cancelling the previous alert. Cancelling
+      // here caused fast consecutive donations to lose their TTS.
       const utterance = new SpeechSynthesisUtterance(current.speak);
       if (voiceRef.current) {
         utterance.voice = voiceRef.current;
         utterance.lang = voiceRef.current.lang;
       }
+      utterance.rate = 1;
+      utterance.pitch = 1;
       window.speechSynthesis.speak(utterance);
     }
 
     const timer = window.setTimeout(() => {
       stopSound?.();
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
       setCurrent(null);
     }, durationMs);
 
     return () => {
       window.clearTimeout(timer);
       stopSound?.();
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
     };
   }, [current, voiceRef]);
 
