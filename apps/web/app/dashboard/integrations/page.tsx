@@ -1,5 +1,6 @@
 import { getCurrentCreator } from '@/lib/get-current-creator';
 import { IntegrationsForm } from './integrations-form';
+import { getWorkerHealth } from '@/lib/worker-health';
 import { CopyField } from '../copy-field';
 import { siteUrl } from '@/lib/site-url';
 import { PageHeader } from '@/components/dashboard/PageHeader';
@@ -65,7 +66,7 @@ export default async function IntegrationsPage({
         )}
       </div>
 
-      <IntegrationsForm settings={settings} />
+      <IntegrationsForm settings={settings} workerOnline={(await getWorkerHealth()).online} />
 
       <div className="card">
         <h2 className="font-semibold">How live chat reading works</h2>

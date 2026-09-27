@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { overlayTopic } from '@/lib/realtime';
+import { getOverlayChannel } from '@/lib/overlay-channel';
 import { playSoundUrl, type StopSound } from '@/lib/play-sound';
 
 export type PlayableSound = {
@@ -32,8 +33,7 @@ function acquire(overlayToken: string) {
     existing.refs += 1;
     return existing.channel;
   }
-  const supabase = createClient();
-  const channel = supabase.channel(topic, { config: { broadcast: { self: false } } });
+  const channel = getOverlayChannel(overlayToken);
   channel.subscribe();
   shared.set(topic, { channel, refs: 1 });
   return channel;

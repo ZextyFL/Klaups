@@ -9,7 +9,8 @@ function tone(
   start: number,
   duration: number,
   type: OscillatorType = 'sine',
-  gainValue = 0.14
+  gainValue = 0.14,
+  destination?: AudioNode
 ) {
   const oscillator = context.createOscillator();
   const gain = context.createGain();
@@ -20,9 +21,45 @@ function tone(
   gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
 
   oscillator.connect(gain);
-  gain.connect(context.destination);
+  gain.connect(destination ?? context.destination);
   oscillator.start(start);
   oscillator.stop(start + duration);
+}
+
+// ---------------------------------------------------------------------------
+// One shared AudioContext per page.
+//
+// Chrome caps how many contexts a page may create, and — more importantly for
+// streaming — hosts that don't pre-authorise audio (TikTok LIVE Studio, a
+// normal browser tab) start every context "suspended" until the page gets a
+// click. One shared context means one unlock covers every sound, and its
+// state tells the dashboard whether the overlay can actually be heard.
+// ---------------------------------------------------------------------------
+
+let sharedContext: AudioContext | null = null;
+
+export function getAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  if (sharedContext) return sharedContext;
+  const Ctor =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctor) return null;
+  sharedContext = new Ctor();
+  return sharedContext;
+}
+
+export function getAudioState(): 'running' | 'suspended' | 'unsupported' {
+  const context = getAudioContext();
+  if (!context) return 'unsupported';
+  return context.state === 'running' ? 'running' : 'suspended';
+}
+
+/** Resume audio; succeeds only inside (or after) a user gesture on hosts that block autoplay. */
+export async function unlockAudio() {
+  const context = getAudioContext();
+  if (context && context.state !== 'running') await context.resume().catch(() => {});
+  return getAudioState();
 }
 
 // Builtins are synthesized and all finish well inside this window.
@@ -35,50 +72,54 @@ export function playBuiltinSound(
 ): StopSound | undefined {
   if (typeof window === 'undefined') return;
 
-  const AudioContextCtor =
-    window.AudioContext ||
-    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const context = getAudioContext();
+  if (!context) {
+    onEnded?.();
+    return;
+  }
+  if (context.state !== 'running') void context.resume().catch(() => {});
 
-  if (!AudioContextCtor) return;
-
-  const context = new AudioContextCtor();
+  // Everything for this one sound routes through its own gain node, so
+  // stopping it is a disconnect rather than closing the shared context.
+  const master = context.createGain();
+  master.connect(context.destination);
   const now = context.currentTime + 0.01;
   const level = Math.min(1, Math.max(0, volume));
   let stopped = false;
 
   switch (name) {
     case 'cash':
-      tone(context, 880, now, 0.12, 'square', 0.1 * level);
-      tone(context, 1320, now + 0.11, 0.12, 'square', 0.08 * level);
-      tone(context, 1760, now + 0.22, 0.16, 'sine', 0.08 * level);
+      tone(context, 880, now, 0.12, 'square', 0.1 * level, master);
+      tone(context, 1320, now + 0.11, 0.12, 'square', 0.08 * level, master);
+      tone(context, 1760, now + 0.22, 0.16, 'sine', 0.08 * level, master);
       break;
     case 'hype':
-      tone(context, 320, now, 0.18, 'sawtooth', 0.08 * level);
-      tone(context, 440, now + 0.12, 0.18, 'sawtooth', 0.08 * level);
-      tone(context, 660, now + 0.24, 0.28, 'square', 0.08 * level);
+      tone(context, 320, now, 0.18, 'sawtooth', 0.08 * level, master);
+      tone(context, 440, now + 0.12, 0.18, 'sawtooth', 0.08 * level, master);
+      tone(context, 660, now + 0.24, 0.28, 'square', 0.08 * level, master);
       break;
     case 'airhorn':
-      tone(context, 220, now, 0.5, 'sawtooth', 0.09 * level);
-      tone(context, 277, now, 0.5, 'square', 0.07 * level);
-      tone(context, 330, now + 0.08, 0.42, 'sawtooth', 0.06 * level);
+      tone(context, 220, now, 0.5, 'sawtooth', 0.09 * level, master);
+      tone(context, 277, now, 0.5, 'square', 0.07 * level, master);
+      tone(context, 330, now + 0.08, 0.42, 'sawtooth', 0.06 * level, master);
       break;
     case 'applause':
       for (let i = 0; i < 9; i += 1) {
-        tone(context, 420 + i * 37, now + i * 0.045, 0.1, 'triangle', 0.035 * level);
+        tone(context, 420 + i * 37, now + i * 0.045, 0.1, 'triangle', 0.035 * level, master);
       }
       break;
     case 'chime':
     default:
-      tone(context, 659.25, now, 0.22, 'sine', 0.09 * level);
-      tone(context, 783.99, now + 0.12, 0.25, 'sine', 0.08 * level);
-      tone(context, 987.77, now + 0.26, 0.35, 'sine', 0.07 * level);
+      tone(context, 659.25, now, 0.22, 'sine', 0.09 * level, master);
+      tone(context, 783.99, now + 0.12, 0.25, 'sine', 0.08 * level, master);
+      tone(context, 987.77, now + 0.26, 0.35, 'sine', 0.07 * level, master);
       break;
   }
 
   const closeTimer = window.setTimeout(() => {
     if (stopped) return;
     stopped = true;
-    void context.close().catch(() => {});
+    master.disconnect();
     onEnded?.();
   }, BUILTIN_DURATION_MS);
 
@@ -86,7 +127,7 @@ export function playBuiltinSound(
     if (stopped) return;
     stopped = true;
     window.clearTimeout(closeTimer);
-    void context.close().catch(() => {});
+    master.disconnect();
   };
 }
 

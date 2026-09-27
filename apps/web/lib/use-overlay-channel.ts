@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { overlayTopic } from '@/lib/realtime';
+import { getOverlayChannel } from '@/lib/overlay-channel';
 
 // Subscribes to a creator's overlay broadcast topic and invokes `onEvent`
 // for every named event received (donation, goal_update, chat_message,
@@ -14,9 +14,7 @@ export function useOverlayChannel(
 ) {
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase.channel(overlayTopic(overlayToken), {
-      config: { broadcast: { self: false } },
-    });
+    const channel = getOverlayChannel(overlayToken);
 
     for (const event of events) {
       channel.on('broadcast', { event }, ({ payload }) => onEvent(event, payload));

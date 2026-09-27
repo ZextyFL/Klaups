@@ -8,7 +8,13 @@ import { Toggle } from '@/components/ui/Toggle';
 import { languageLabel } from '@/lib/voice-language';
 import { TikTokConnectCard } from './tiktok-connect-card';
 
-export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
+export function IntegrationsForm({
+  settings,
+  workerOnline,
+}: {
+  settings: CreatorSettings;
+  workerOnline: boolean;
+}) {
   const supabase = createClient();
   const router = useRouter();
 
@@ -78,7 +84,7 @@ export function IntegrationsForm({ settings }: { settings: CreatorSettings }) {
 
   return (
     <div className="space-y-6">
-      <TikTokConnectCard settings={settings} />
+      <TikTokConnectCard settings={settings} workerOnline={workerOnline} />
 
       <div className="card space-y-4">
         <h2 className="font-semibold">Text-to-speech</h2>

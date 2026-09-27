@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { fetchTikTokLiveStatus } from '@/lib/tiktok-public';
+import { getWorkerHealth } from '@/lib/worker-health';
 
 export const runtime = 'nodejs';
 
@@ -88,12 +89,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const worker = await getWorkerHealth();
+
   await admin
     .from('creator_settings')
     .update({
       tiktok_worker_enabled: true,
       tiktok_status: 'connecting',
-      tiktok_status_message: 'LIVE detected — joining your room…',
+      tiktok_status_message: worker.online
+        ? 'LIVE detected — joining your room…'
+        : 'LIVE detected — waiting for the Klaups LIVE connector to come online.',
       tiktok_viewer_count: status.viewerCount ?? 0,
       tiktok_live_checked_at: now,
       tiktok_live_title: status.title,
@@ -104,6 +109,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     listening: true,
+    workerOnline: worker.online,
     username,
     viewerCount: status.viewerCount,
     title: status.title,

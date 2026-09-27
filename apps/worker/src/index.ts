@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { hostname } from 'node:os';
 import { ControlEvent, TikTokLiveConnection, WebcastEvent } from 'tiktok-live-connector';
 import { fetchActiveCreators, supabase, type ActiveCreator } from './supabase.js';
 import { send } from './broadcast.js';
@@ -633,8 +634,33 @@ async function reconcile() {
   }
 }
 
+// Lets the dashboard tell "no worker is running" apart from "joining your
+// room", instead of both looking like an endless "Connecting…".
+const WORKER_ID = process.env.WORKER_ID?.trim() || hostname();
+const HEARTBEAT_MS = 30_000;
+
+async function heartbeat() {
+  const all = [...supervisors.values()];
+  const { error } = await supabase.from('worker_heartbeats').upsert(
+    {
+      worker_id: WORKER_ID,
+      last_beat_at: new Date().toISOString(),
+      rooms: all.length,
+      live_rooms: all.filter((s) => s.techState === 'connected').length,
+      version: process.env.npm_package_version ?? null,
+    },
+    { onConflict: 'worker_id' }
+  );
+  if (error) console.error('heartbeat failed', error.message);
+}
+
 async function main() {
-  console.log('Klaups worker starting…');
+  console.log(`Klaups worker starting… (id ${WORKER_ID})`);
+  await supabase
+    .from('worker_heartbeats')
+    .upsert({ worker_id: WORKER_ID, started_at: new Date().toISOString() }, { onConflict: 'worker_id' });
+  await heartbeat();
+  setInterval(() => void heartbeat(), HEARTBEAT_MS);
   startHealthServer(() => ({
     supervisors: supervisors.size,
     live: [...supervisors.values()].filter((s) => s.techState === 'connected').length,

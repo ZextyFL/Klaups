@@ -56,6 +56,18 @@ npm install
 npm start
 ```
 
+## Quick start on your own PC (fastest way to test)
+
+Like TikFinity's desktop connector, the worker can run on the PC you stream
+from. Windows: double-click `start-worker.bat` (macOS/Linux: `./start-worker.sh`).
+The first run opens `.env` — paste `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` from Supabase → Project Settings → API, save, and
+run it again. Keep the window open while live. The service role key is a
+full-access admin key: keep `.env` on your own machine only.
+
+For creators other than you, deploy it to a host instead (below) so it runs
+24/7 without anyone's PC.
+
 ## Deployment
 
 Do **not** deploy this as a Netlify Function. A LIVE connection needs a

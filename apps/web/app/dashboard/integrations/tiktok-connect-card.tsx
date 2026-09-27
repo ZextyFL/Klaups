@@ -18,7 +18,13 @@ function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase();
 }
 
-export function TikTokConnectCard({ settings }: { settings: CreatorSettings }) {
+export function TikTokConnectCard({
+  settings,
+  workerOnline,
+}: {
+  settings: CreatorSettings;
+  workerOnline: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +32,12 @@ export function TikTokConnectCard({ settings }: { settings: CreatorSettings }) {
 
   const linked = Boolean(settings.tiktok_username);
   const listening = Boolean(settings.tiktok_worker_enabled);
-  const status = STATUS_LABEL[linked ? settings.tiktok_status : 'disconnected'];
+  // Without a running worker nothing will ever join the room; say so rather
+  // than showing "Connecting…" indefinitely.
+  const connectorDown = listening && !workerOnline;
+  const status = connectorDown
+    ? { text: 'Connector offline', className: 'bg-red-500/10 text-red-300' }
+    : STATUS_LABEL[linked ? settings.tiktok_status : 'disconnected'];
 
   async function connectLive() {
     setBusy(true);
@@ -142,7 +153,18 @@ export function TikTokConnectCard({ settings }: { settings: CreatorSettings }) {
             </div>
           )}
 
-          {!offline && settings.tiktok_status_message && (
+          {connectorDown && (
+            <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-500/[0.07] p-4">
+              <p className="font-medium text-red-200">Klaups&apos; LIVE connector isn&apos;t running</p>
+              <p className="mt-1 text-sm leading-6 text-white/55">
+                Your LIVE was found, but the service that joins your room and reads chat and gifts
+                is offline, so nothing can connect yet. It will join automatically the moment it&apos;s
+                back — you don&apos;t need to press connect again.
+              </p>
+            </div>
+          )}
+
+          {!offline && !connectorDown && settings.tiktok_status_message && (
             <p className="mt-3 rounded-xl bg-white/[0.035] px-3 py-2 text-xs text-white/40">
               {settings.tiktok_status_message}
             </p>
