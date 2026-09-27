@@ -53,21 +53,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Don't let two Klaups creators claim the same TikTok handle.
-  const { data: claimedBy } = await admin
-    .from('tiktok_connections')
-    .select('profile_id')
-    .ilike('username', profile.username)
-    .neq('profile_id', user.id)
-    .maybeSingle();
-
-  if (claimedBy) {
-    return NextResponse.json(
-      { error: 'That TikTok account is already connected to another Klaups creator.' },
-      { status: 409 }
-    );
-  }
-
   const now = new Date().toISOString();
 
   const { error: upsertError } = await admin.from('tiktok_connections').upsert(
@@ -83,12 +68,8 @@ export async function POST(request: Request) {
   );
 
   if (upsertError) {
-    // The partial unique index on lower(username) is the authoritative guard
-    // against a race the SELECT above cannot close.
-    return NextResponse.json(
-      { error: 'That TikTok account is already connected to another Klaups creator.' },
-      { status: 409 }
-    );
+    console.error('tiktok link failed', upsertError);
+    return NextResponse.json({ error: 'Could not save your TikTok account. Try again.' }, { status: 500 });
   }
 
   await admin
