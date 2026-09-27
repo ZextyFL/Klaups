@@ -98,7 +98,7 @@ export async function POST(request: Request) {
       tiktok_status: 'connecting',
       tiktok_status_message: worker.online
         ? 'LIVE detected — joining your room…'
-        : 'LIVE detected — waiting for the Klaups LIVE connector to come online.',
+        : 'LIVE detected — your Klaups overlay in OBS / LIVE Studio is connecting…',
       tiktok_viewer_count: status.viewerCount ?? 0,
       tiktok_live_checked_at: now,
       tiktok_live_title: status.title,

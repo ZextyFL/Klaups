@@ -66,7 +66,11 @@ export default async function IntegrationsPage({
         )}
       </div>
 
-      <IntegrationsForm settings={settings} workerOnline={(await getWorkerHealth()).online} />
+      <IntegrationsForm
+        settings={settings}
+        workerOnline={(await getWorkerHealth()).online}
+        liveConfigured={Boolean(process.env.EULER_API_KEY && process.env.EULER_ACCOUNT_ID)}
+      />
 
       <div className="card">
         <h2 className="font-semibold">How live chat reading works</h2>

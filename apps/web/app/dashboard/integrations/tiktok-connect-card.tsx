@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CreatorSettings } from '@/lib/database.types';
+import { useOverlayPresence } from '@/lib/use-overlay-presence';
+import { OVERLAY_LABEL } from '@/lib/overlay-channel';
 
 const STATUS_LABEL: Record<CreatorSettings['tiktok_status'], { text: string; className: string }> = {
   disconnected: { text: 'Not listening', className: 'bg-white/[0.06] text-white/50' },
@@ -21,9 +23,12 @@ function initials(value: string) {
 export function TikTokConnectCard({
   settings,
   workerOnline,
+  liveConfigured,
 }: {
   settings: CreatorSettings;
   workerOnline: boolean;
+  /** Euler Stream credentials are set on the server (browser connector usable). */
+  liveConfigured: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -32,12 +37,25 @@ export function TikTokConnectCard({
 
   const linked = Boolean(settings.tiktok_username);
   const listening = Boolean(settings.tiktok_worker_enabled);
-  // Without a running worker nothing will ever join the room; say so rather
-  // than showing "Connecting…" indefinitely.
-  const connectorDown = listening && !workerOnline;
-  const status = connectorDown
-    ? { text: 'Connector offline', className: 'bg-red-500/10 text-red-300' }
-    : STATUS_LABEL[linked ? settings.tiktok_status : 'disconnected'];
+  // The TikTok LIVE connection is held either by a server worker or by one of
+  // the creator's open overlays (OBS / LIVE Studio). Presence tells us which,
+  // so the card never shows an unexplained "Connecting…".
+  const { overlays, ready } = useOverlayPresence(settings.overlay_token);
+  const leader = overlays.find((o) => o.connector !== 'standby');
+  const mutedOverlay = overlays.find((o) => o.audio === 'suspended');
+  const notConfigured = listening && !workerOnline && !liveConfigured;
+  const noOverlay = listening && !workerOnline && liveConfigured && ready && overlays.length === 0;
+  const connectorDown = notConfigured || noOverlay;
+  const liveNow = leader?.connector === 'live' || (workerOnline && settings.tiktok_status === 'live');
+  const status = notConfigured
+    ? { text: 'Not configured', className: 'bg-red-500/10 text-red-300' }
+    : noOverlay
+      ? { text: 'Open your overlay', className: 'bg-amber-500/10 text-amber-300' }
+      : liveNow
+        ? STATUS_LABEL.live
+        : leader?.connector === 'offline'
+          ? STATUS_LABEL.offline
+          : STATUS_LABEL[linked ? settings.tiktok_status : 'disconnected'];
 
   async function connectLive() {
     setBusy(true);
@@ -153,15 +171,41 @@ export function TikTokConnectCard({
             </div>
           )}
 
-          {connectorDown && (
-            <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-500/[0.07] p-4">
-              <p className="font-medium text-red-200">Klaups&apos; LIVE connector isn&apos;t running</p>
+          {listening && !connectorDown && (leader || workerOnline) && (
+            <p className="mt-3 rounded-xl bg-white/[0.035] px-3 py-2 text-xs text-white/50">
+              {workerOnline
+                ? 'Connected by the Klaups server.'
+                : `Connected through your ${OVERLAY_LABEL[leader!.kind]} overlay${leader!.host === 'obs' ? ' in OBS' : ''}.`}
+              {leader?.detail && ` ${leader.detail}`}
+            </p>
+          )}
+
+          {noOverlay && (
+            <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-500/[0.07] p-4">
+              <p className="font-medium text-amber-200">Open your Klaups overlay to connect</p>
               <p className="mt-1 text-sm leading-6 text-white/55">
-                Your LIVE was found, but the service that joins your room and reads chat and gifts
-                is offline, so nothing can connect yet. It will join automatically the moment it&apos;s
-                back — you don&apos;t need to press connect again.
+                Your overlay in OBS or TikTok LIVE Studio is what connects to your LIVE — no extra
+                app needed. Add the <a className="underline" href="/dashboard/widgets">Stream Kit URL</a>{' '}
+                as a Browser Source (OBS) or Link source (LIVE Studio); it connects within seconds.
               </p>
             </div>
+          )}
+
+          {notConfigured && (
+            <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-500/[0.07] p-4">
+              <p className="font-medium text-red-200">TikTok LIVE isn&apos;t configured on the server</p>
+              <p className="mt-1 text-sm leading-6 text-white/55">
+                Set <code>EULER_API_KEY</code> and <code>EULER_ACCOUNT_ID</code> in Netlify → Site
+                configuration → Environment variables, then redeploy.
+              </p>
+            </div>
+          )}
+
+          {mutedOverlay && (
+            <p className="mt-3 rounded-xl border border-amber-400/15 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-200">
+              🔇 Sound is blocked in your {OVERLAY_LABEL[mutedOverlay.kind]} overlay. Click the overlay once
+              to allow sound (OBS: enable &quot;Control audio via OBS&quot; or interact with the source).
+            </p>
           )}
 
           {!offline && !connectorDown && settings.tiktok_status_message && (

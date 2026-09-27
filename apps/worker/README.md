@@ -1,5 +1,12 @@
 # Klaups TikTok LIVE worker
 
+> **Optional since the browser connector.** By default the creator's overlay
+> in OBS / TikTok LIVE Studio holds the LIVE connection itself (see
+> `apps/web/lib/live-connector.ts`), so a Netlify-only deployment works with
+> just `EULER_API_KEY` + `EULER_ACCOUNT_ID` set. Run this worker only if you
+> want connections held server-side 24/7; when its heartbeat is online the
+> overlays stand down automatically so a room is never joined twice.
+
 The worker is the always-on realtime side of Klaups. It connects to creators'
 TikTok LIVE rooms with `tiktok-live-connector`, forwards chat/viewer events,
 records completed gifts and broadcasts gift-specific reactions into each
