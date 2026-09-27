@@ -3,6 +3,7 @@ import { signOut } from '@/app/auth/actions';
 import { getCurrentCreator } from '@/lib/get-current-creator';
 import { Sidebar } from '@/components/dashboard/Sidebar';
 import { SoundboardHotkeys } from '@/components/dashboard/SoundboardHotkeys';
+import { RememberAccount } from '@/components/dashboard/RememberAccount';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { profile, settings, user, payoutReady } = await getCurrentCreator();
@@ -27,6 +28,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </div>
 
       <SoundboardHotkeys profileId={user.id} overlayToken={settings.overlay_token} />
+      <RememberAccount
+        email={user.email ?? ''}
+        name={profile.display_name || user.user_metadata?.full_name || profile.username}
+        avatarUrl={profile.avatar_url || user.user_metadata?.avatar_url || null}
+      />
       <Sidebar
         username={profile.username}
         displayName={profile.display_name}

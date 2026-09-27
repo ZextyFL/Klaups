@@ -1,7 +1,16 @@
+import { redirect } from 'next/navigation';
 import { AuthShell } from '@/components/AuthShell';
 import { GoogleAuthButton } from '@/components/GoogleAuthButton';
+import { createClient } from '@/lib/supabase/server';
 
-export default function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
+  // Already signed in on this device (sessions last 400 days): skip the login
+  // screen. With an error present we stay, so the message can be shown.
+  if (!searchParams.error) {
+    const { data } = await createClient().auth.getUser();
+    if (data.user) redirect('/dashboard');
+  }
+
   return (
     <AuthShell>
       <div className="text-center">
