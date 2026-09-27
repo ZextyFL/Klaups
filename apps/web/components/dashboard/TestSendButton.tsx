@@ -14,24 +14,46 @@ export function TestSendButton({
   className?: string;
 }) {
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [error, setError] = useState('');
 
   async function send() {
     setState('sending');
+    setError('');
+
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body ?? {}),
       });
-      setState(res.ok ? 'sent' : 'error');
-    } catch {
+
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+
+      if (!res.ok || data?.error) {
+        setError(data?.error ?? `Request failed (${res.status})`);
+        setState('error');
+      } else {
+        setState('sent');
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Network request failed');
       setState('error');
     }
-    setTimeout(() => setState('idle'), 2000);
+
+    setTimeout(() => {
+      setState('idle');
+      setError('');
+    }, 3000);
   }
 
   return (
-    <button type="button" className={className} onClick={send} disabled={state === 'sending'}>
+    <button
+      type="button"
+      className={className}
+      onClick={send}
+      disabled={state === 'sending'}
+      title={error || undefined}
+    >
       {state === 'sending' ? 'Sending…' : state === 'sent' ? 'Sent ✓' : state === 'error' ? 'Failed' : label}
     </button>
   );
