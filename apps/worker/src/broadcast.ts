@@ -21,7 +21,7 @@ export async function getOrOpenChannel(overlayToken: string) {
   if (existing) return existing;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    const channel = supabase.channel(topic);
+    const channel = supabase.channel(topic, { config: { broadcast: { ack: true } } });
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -30,7 +30,7 @@ export async function getOrOpenChannel(overlayToken: string) {
           SUBSCRIBE_TIMEOUT_MS,
         );
 
-        channel.subscribe((status) => {
+        channel.subscribe((status, error) => {
           if (status === 'SUBSCRIBED') {
             clearTimeout(timeout);
             resolve();
@@ -40,7 +40,11 @@ export async function getOrOpenChannel(overlayToken: string) {
             status === 'CLOSED'
           ) {
             clearTimeout(timeout);
-            reject(new Error(`Realtime channel status: ${status}`));
+            reject(
+              new Error(
+                `Realtime channel status: ${status}${error ? ` - ${String(error)}` : ''}`,
+              ),
+            );
           }
         });
       });
