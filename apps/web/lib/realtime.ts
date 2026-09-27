@@ -1,14 +1,13 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
-const SUBSCRIBE_TIMEOUT_MS = 5000;
 const MAX_ATTEMPTS = 3;
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Sends an ephemeral realtime event and only reports success when Supabase
-// confirms both the channel subscription and the broadcast send.
+// Server-side broadcasts use Realtime's HTTP endpoint so the API does not
+// need to open a WebSocket subscription before sending an alert.
 export async function broadcast(topic: string, event: string, payload: unknown) {
   const supabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,73 +15,24 @@ export async function broadcast(topic: string, event: string, payload: unknown) 
     { realtime: { params: { eventsPerSecond: 10 } } }
   );
 
-  let lastError = 'Realtime broadcast failed';
+  const channel = supabase.channel(topic);
+  let lastError: unknown;
 
   try {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-      const channel = supabase.channel(topic);
-
       try {
-        const sendResult = await new Promise<string>((resolve, reject) => {
-          let settled = false;
-
-          const timeout = setTimeout(() => {
-            if (!settled) {
-              settled = true;
-              reject(new Error('Realtime subscription timed out'));
-            }
-          }, SUBSCRIBE_TIMEOUT_MS);
-
-          channel.subscribe((status) => {
-            if (settled) return;
-
-            if (status === 'SUBSCRIBED') {
-              void channel
-                .send({ type: 'broadcast', event, payload })
-                .then((result) => {
-                  if (settled) return;
-                  settled = true;
-                  clearTimeout(timeout);
-
-                  if (result === 'ok') {
-                    resolve('ok');
-                  } else {
-                    reject(new Error(`Realtime broadcast returned: ${result}`));
-                  }
-                })
-                .catch((error) => {
-                  if (settled) return;
-                  settled = true;
-                  clearTimeout(timeout);
-                  reject(error instanceof Error ? error : new Error(String(error)));
-                });
-              return;
-            }
-
-            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-              settled = true;
-              clearTimeout(timeout);
-              reject(new Error(`Realtime channel status: ${status}`));
-            }
-          });
-        });
-
-        if (sendResult === 'ok') return;
+        await channel.httpSend(event, payload);
+        return;
       } catch (error) {
-        lastError = error instanceof Error ? error.message : String(error);
-      } finally {
-        await supabase.removeChannel(channel).catch(() => undefined);
-      }
-
-      if (attempt < MAX_ATTEMPTS) {
-        await wait(250 * attempt);
+        lastError = error;
+        if (attempt < MAX_ATTEMPTS) await wait(250 * attempt);
       }
     }
   } finally {
-    await supabase.removeAllChannels().catch(() => undefined);
+    await supabase.removeChannel(channel).catch(() => undefined);
   }
 
-  throw new Error(lastError);
+  throw lastError instanceof Error ? lastError : new Error('Realtime broadcast failed');
 }
 
 export function overlayTopic(overlayToken: string) {
